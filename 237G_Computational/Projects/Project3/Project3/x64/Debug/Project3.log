@@ -1,0 +1,8 @@
+﻿  Question1.cpp
+c:\_ucla\quarter3\237g_computational\projects\project3\project3\question1.cpp(18): warning C4244: 'argument': conversion from 'double' to 'unsigned __int64', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\project3\question1.cpp(26): warning C4244: 'argument': conversion from 'double' to 'unsigned __int64', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\project3\question1.cpp(39): warning C4244: 'argument': conversion from 'double' to 'unsigned __int64', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\project3\question1.cpp(74): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\project3\question1.cpp(90): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+  Project3.vcxproj -> C:\_UCLA\Quarter3\237G_Computational\Projects\Project3\x64\Debug\Project3.exe
+  Project3.vcxproj -> C:\_UCLA\Quarter3\237G_Computational\Projects\Project3\x64\Debug\Project3.pdb (Full PDB)

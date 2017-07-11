@@ -1,0 +1,49 @@
+﻿  Question5.cpp
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question5.cpp(51): warning C4244: 'argument': conversion from 'double' to 'unsigned __int64', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\helpers.h(45): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+  c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question5.cpp(23): note: see reference to function template instantiation 'void writeToExcel<double>(std::string,std::vector<std::vector<double,std::allocator<_Ty>>,std::allocator<std::vector<_Ty,std::allocator<_Ty>>>>)' being compiled
+          with
+          [
+              _Ty=double
+          ]
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\helpers.h(61): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+  c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question5.cpp(28): note: see reference to function template instantiation 'void writeToExcel<double>(std::string,std::vector<double,std::allocator<_Ty>>,std::vector<_Ty,std::allocator<_Ty>>)' being compiled
+          with
+          [
+              _Ty=double
+          ]
+  Question4.cpp
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question4.cpp(27): warning C4244: 'argument': conversion from 'double' to 'int', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question4.cpp(65): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question4.cpp(95): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+  Question3.cpp
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\helpers.h(36): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+  c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question3.cpp(148): note: see reference to function template instantiation 'void writeToExcel<double>(std::string,std::vector<double,std::allocator<_Ty>>)' being compiled
+          with
+          [
+              _Ty=double
+          ]
+  Question2.cpp
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question2.cpp(16): warning C4244: 'argument': conversion from 'double' to 'unsigned __int64', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question2.cpp(22): warning C4244: 'argument': conversion from 'double' to 'unsigned __int64', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question2.cpp(42): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question2.cpp(62): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+  Question1.cpp
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question1.cpp(18): warning C4244: 'argument': conversion from 'double' to 'unsigned __int64', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question1.cpp(26): warning C4244: 'argument': conversion from 'double' to 'unsigned __int64', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question1.cpp(39): warning C4244: 'argument': conversion from 'double' to 'unsigned __int64', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question1.cpp(74): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\question1.cpp(90): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+  Project3.cpp
+  Generators.cpp
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\generators.cpp(10): warning C4244: 'argument': conversion from 'double' to 'unsigned int', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\generators.cpp(21): warning C4244: 'initializing': conversion from 'double' to 'unsigned __int64', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\generators.cpp(21): warning C4244: 'initializing': conversion from 'double' to 'const unsigned __int64', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\generators.cpp(22): warning C4244: 'initializing': conversion from 'double' to 'long', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\generators.cpp(22): warning C4244: 'initializing': conversion from 'double' to 'const long', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\generators.cpp(31): warning C4244: 'initializing': conversion from 'double' to 'unsigned __int64', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\generators.cpp(32): warning C4244: 'argument': conversion from 'unsigned __int64' to 'double', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project3\test\project3\project3\generators.cpp(61): warning C4244: 'argument': conversion from 'double' to 'unsigned __int64', possible loss of data
+  Generating Code...
+  Project3.vcxproj -> C:\_UCLA\Quarter3\237G_Computational\Projects\Project3\Test\Project3\x64\Debug\Project3.exe
+  Project3.vcxproj -> C:\_UCLA\Quarter3\237G_Computational\Projects\Project3\Test\Project3\x64\Debug\Project3.pdb (Full PDB)

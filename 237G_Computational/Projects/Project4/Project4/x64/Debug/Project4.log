@@ -1,0 +1,15 @@
+﻿  Question4.cpp
+c:\_ucla\quarter3\237g_computational\projects\project4\project4\helpers.h(70): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+  c:\_ucla\quarter3\237g_computational\projects\project4\project4\question4.cpp(25): note: see reference to function template instantiation 'void writeToExcel<double>(std::string,std::vector<std::vector<double,std::allocator<_Ty>>,std::allocator<std::vector<_Ty,std::allocator<_Ty>>>>)' being compiled
+          with
+          [
+              _Ty=double
+          ]
+c:\_ucla\quarter3\237g_computational\projects\project4\project4\helpers.h(53): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+  c:\_ucla\quarter3\237g_computational\projects\project4\project4\question4.cpp(29): note: see reference to function template instantiation 'void writeToConsole<double>(std::vector<std::vector<double,std::allocator<_Ty>>,std::allocator<std::vector<_Ty,std::allocator<_Ty>>>>)' being compiled
+          with
+          [
+              _Ty=double
+          ]
+  Project4.vcxproj -> C:\_UCLA\Quarter3\237G_Computational\Projects\Project4\x64\Debug\Project4.exe
+  Project4.vcxproj -> C:\_UCLA\Quarter3\237G_Computational\Projects\Project4\x64\Debug\Project4.pdb (Full PDB)

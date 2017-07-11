@@ -1,0 +1,111 @@
+---
+title: "Computational Homework 6"
+author: "Nitish Ramkumar"
+output: pdf_document
+---
+
+#Question 1
+
+```{r echo=FALSE}
+library(knitr)
+vol <- seq(0.12,0.48,0.04)
+callPrices <- read.csv("Project6/callPrices.csv",header = FALSE)
+putPrices <- read.csv("Project6/putPrices.csv",header = FALSE)
+prices <- cbind(vol,callPrices,putPrices)
+kable(prices,col.names = c("Volatility","Call Prices","Put Prices"),caption="Lookback Prices")
+plot(x=prices[,1],y=prices[,2],type="l",main="Lookback prices",ylab="Prices",xlab="Volatility")
+lines(x=prices[,1],y=prices[,3],col="red")
+legend("bottomright",c("Lookback Call","Lookback Put"),col=c("black","red"),lty=1)
+```
+
+#Question 2
+##Part a  
+  
+The default information for the default case are as below: (Default time in years)
+
+```{r echo=FALSE}
+allPrices <- read.csv("Project6/AllAnswers.csv",header=FALSE)
+allPrices <- allPrices[,c(1:6)]
+colnames(allPrices) <- c("lambda1","lambda2","Time","OptionPrice","DefaultTime","Probability")
+qa <- unique(allPrices[allPrices$lambda1==0.2 & allPrices$lambda2==0.4 & allPrices$Time==5,])
+row.names(qa) <- NULL
+kable(qa,col.names=c("Lambda1","Lambda2","Time(years)","Default Option Price","Expected Exercise Time","Probability"))
+
+```
+
+##Part b  
+  
+As per the question, there will be 6 graphs. 2 each for Default Option Price, Probability and Expected Exercise time.    
+Within the 2,  
+1) Graph 1 will keep ${\lambda}_1$ constant at 0.2. The graph is a function of time and will have multiple lines for each ${\lambda}_2$.  
+2) Graph 2 will keep ${\lambda}_2$ constant at 0.4. The graph is a function of time and will have multiple lines for each ${\lambda}_1$.  
+  
+  
+
+###Default Option Price
+```{r echo=FALSE}
+#fix lambda1
+fix.lambda1 <- unique(allPrices[allPrices$lambda1 == 0.2,])
+fix.lambda2 <- unique(allPrices[allPrices$lambda2 == 0.4,])
+
+colors <- c("black","blue","red","yellow","green","brown","pink","purple","orange")
+par(mfrow=c(1,2))
+x11(width=2, height=6)
+#a - Option Price
+plot(y=fix.lambda1[fix.lambda1$lambda2 == 0.0,"OptionPrice"],x=fix.lambda1[fix.lambda1$lambda2 == 0.0,"Time"],main="Option price, lambda1=0.2",xlab="Time",ylab="OptionPrice",type="l",ylim=c(1000,5000))
+colCount <- 1
+for(val in seq(0.0,0.8,0.1)){
+  lines(y=fix.lambda1[fix.lambda1$lambda2 == val,"OptionPrice"],x=fix.lambda1[fix.lambda1$lambda2 == val,"Time"],col=colors[colCount])
+  colCount <-  colCount + 1
+}
+legend("bottomright",as.character(seq(0.0,0.8,0.1)),col=colors[1:colCount-1],lty=1,pt.cex=1,cex=0.5)
+
+plot(y=fix.lambda2[fix.lambda2$lambda1 == 0.05,"OptionPrice"],x=fix.lambda2[fix.lambda2$lambda1 == 0.05,"Time"],main="Option price, lambda2=0.4",xlab="Time",ylab="OptionPrice",type="l",ylim=c(3000,5500))
+colCount <- 1
+for(val in seq(0.05,0.4,0.05)){
+  lines(y=fix.lambda2[fix.lambda2$lambda1 == val,"OptionPrice"],x=fix.lambda2[fix.lambda2$lambda1 == val,"Time"],col=colors[colCount])
+  colCount <- colCount + 1
+}
+legend("bottomright",as.character(seq(0.05,0.4,0.05)),col=colors[1:colCount-1],lty=1,pt.cex=1,cex=0.5)
+``` 
+  
+###Probability
+```{r echo=FALSE}
+par(mfrow=c(1,2))
+x11(width=2, height=4)
+plot(y=fix.lambda1[fix.lambda1$lambda2 == 0.0,"Probability"],x=fix.lambda1[fix.lambda1$lambda2 == 0.0,"Time"],main="Probability, lambda1=0.2",xlab="Time",ylab="Probability",type="l",ylim=c(0.2,1))
+colCount <- 1
+for(val in seq(0.0,0.8,0.1)){
+  lines(y=fix.lambda1[fix.lambda1$lambda2 == val,"Probability"],x=fix.lambda1[fix.lambda1$lambda2 == val,"Time"],col=colors[colCount])
+  colCount <-  colCount + 1
+}
+legend("bottomright",as.character(seq(0.0,0.8,0.1)),col=colors[1:colCount-1],lty=1,pt.cex=1,cex=0.4)
+
+plot(y=fix.lambda2[fix.lambda2$lambda1 == 0.05,"Probability"],x=fix.lambda2[fix.lambda2$lambda1 == 0.05,"Time"],main="Probability, lambda2=0.4",xlab="Time",ylab="Probability",type="l",ylim=c(0.73,1))
+colCount <- 1
+for(val in seq(0.05,0.4,0.05)){
+  lines(y=fix.lambda2[fix.lambda2$lambda1 == val,"Probability"],x=fix.lambda2[fix.lambda2$lambda1 == val,"Time"],col=colors[colCount])
+  colCount <- colCount + 1
+}
+legend("bottomright",as.character(seq(0.05,0.4,0.05)),col=colors[1:colCount-1],lty=1,pt.cex=1,cex=0.4)
+```
+  
+###Expected Exercise Time
+```{r echo=FALSE}
+par(mfrow=c(1,2))
+x11(width=2, height=5)
+plot(y=fix.lambda1[fix.lambda1$lambda2 == 0.1,"DefaultTime"],x=fix.lambda1[fix.lambda1$lambda2 == 0.1,"Time"],main="Default Time,lambda1=0.2",xlab="Time",ylab="DefaultTime",type="l",ylim=c(0.5,1.7))
+colCount <- 1
+for(val in seq(0.1,0.8,0.1)){
+  lines(y=fix.lambda1[fix.lambda1$lambda2 == val,"DefaultTime"],x=fix.lambda1[fix.lambda1$lambda2 == val,"Time"],col=colors[colCount])
+  colCount <-  colCount + 1
+}
+legend("bottomright",as.character(seq(0.1,0.8,0.1)),col=colors[1:colCount-1],lty=1,pt.cex=1,cex=0.4)
+
+plot(y=fix.lambda2[fix.lambda2$lambda1 == 0.05,"DefaultTime"],x=fix.lambda2[fix.lambda2$lambda1 == 0.05,"Time"],main="Default Time,lambda2=0.4",xlab="Time",ylab="DefaultTime",type="l",ylim=c(0.8,1.5))
+colCount <- 1
+for(val in seq(0.05,0.4,0.05)){
+  lines(y=fix.lambda2[fix.lambda2$lambda1 == val,"DefaultTime"],x=fix.lambda2[fix.lambda2$lambda1 == val,"Time"],col=colors[colCount])
+  colCount <- colCount + 1
+}
+legend("bottomright",as.character(seq(0.05,0.4,0.05)),col=colors[1:colCount-1],lty=1,pt.cex=1,cex=0.4)

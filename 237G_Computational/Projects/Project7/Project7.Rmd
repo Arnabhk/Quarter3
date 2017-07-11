@@ -1,0 +1,323 @@
+---
+title: "Computational Finance Project 7"
+output: pdf_document
+date: "May 24, 2017"
+---
+
+```{python echo=FALSE}
+print("######Computational Finance - Project 7###########")
+print("Nitish Ramkumar")
+
+import numpy as np
+from numpy import linalg
+import scipy.stats as st
+import pandas as pd
+import math
+import matplotlib.pyplot as plot
+
+def question1(currPrice):
+    sigma = 0.2
+    r = 0.04
+    dt = 0.002
+
+    time = 0.5;
+    strike = 10;
+
+
+    dx = [sigma * (math.sqrt(dt)),sigma * (math.sqrt(3*dt)),sigma * (math.sqrt(4*dt))]
+    no_of_paths = [math.ceil((math.log(currPrice)-math.log(4))/dx_i)+20 for dx_i in dx];
+
+    #answers = np.zeros([3,len(dx)])
+    efdanswers = np.zeros([len(range(4,16+1)),len(dx)])
+    ifdanswers = np.zeros([len(range(4, 16 + 1)), len(dx)])
+    cnfanswers = np.zeros([len(range(4, 16 + 1)), len(dx)])
+
+    for dxcount in range(0,len(dx)):
+        efdanswers[:,dxcount] = calculate_price(sigma, r, dx[dxcount], dt, currPrice, no_of_paths[dxcount], time, strike,"EFD")
+        ifdanswers[:,dxcount] = calculate_price(sigma, r, dx[dxcount], dt, currPrice, no_of_paths[dxcount], time, strike, "IFD")
+        cnfanswers[:,dxcount] = calculate_price(sigma, r, dx[dxcount], dt, currPrice, no_of_paths[dxcount], time, strike, "CNF")
+
+    put_price_bs = [calculate_price_BS(sigma, r, strike, s0, time) for s0 in range(4,16+1)]
+    answers = np.column_stack((efdanswers,ifdanswers,cnfanswers,put_price_bs))
+    final_answer = pd.DataFrame(answers,columns=['EFD_dt','EFD_3dt','EFD_4dt','IFD_dt','IFD_3dt','IFD_4dt','CNF_dt',
+                                               'CNF_3dt','CNF_4dt','BlackScholes'],
+                                index=range(4,16+1))
+    #print("Black  Scholes price is {0:.5f}".format(put_price_bs))
+    #print(df)
+    return final_answer;
+
+def calculate_price(sigma, r, dx, dt, s0, no_of_paths, time, strike,type):
+
+    ps = calculate_ps(dt,sigma,dx,r,type)
+    pu = ps[0]
+    pm = ps[1]
+    pd = ps[2]
+
+    # Generate Stock Path
+    stock_path_log = [math.log(s0) + (count * dx) for count in range(no_of_paths, -no_of_paths - 1, -1)]
+    stock_path = [math.exp(st) for st in stock_path_log]
+    put_prices_ter = [max(strike - stockVal, 0) for stockVal in stock_path]
+
+    # Generate Put Prices
+    max_time_steps = int(time / dt)
+    put_prices = np.full([2 * no_of_paths + 1, max_time_steps], np.nan)
+    put_prices[:, (max_time_steps - 1)] = put_prices_ter
+
+    for count in range(max_time_steps - 2, -1, -1):
+        put_prices[:, count] = calculate_put_price(count, no_of_paths, put_prices[:, count + 1], stock_path, pu, pm, pd,type)
+
+    s0_range = range(4,16+1)
+    firstPos = [next(i for i, v in enumerate(stock_path) if v <= count) for count in s0_range]
+    putprices_ans = [put_prices[pos-1,0] for pos in firstPos]
+
+    #return put_prices[no_of_paths, 0]
+    return putprices_ans
+
+
+def calculate_ps(dt, sigma, dx, r, type):
+    if type == "EFD":
+        pu = dt * (((sigma ** 2) / (2 * (dx ** 2))) + ((r - ((sigma ** 2) / 2)) / (2 * dx)))
+        pm = 1 - dt * (sigma ** 2 / dx ** 2) - r * dt
+        pd = dt * (((sigma ** 2) / (2 * (dx ** 2))) - ((r - ((sigma ** 2) / 2)) / (2 * dx)))
+
+    elif type=="IFD":
+        pu = -0.5*dt*(((sigma ** 2) / (dx ** 2)) + ((r - ((sigma ** 2) / 2)) / dx))
+        pm = 1 + dt*(sigma**2/dx**2) + r*dt
+        pd = -0.5*dt*(((sigma ** 2) / (dx ** 2)) - ((r - ((sigma ** 2) / 2)) / dx))
+
+    elif type=="CNF":
+        pu = -0.25 * dt * (((sigma ** 2) / (dx ** 2)) + ((r - ((sigma ** 2) / 2)) / dx))
+        pm = 1 + dt * (sigma ** 2 / (2 * (dx ** 2))) + (r * dt/2)
+        pd = -0.25 * dt * (((sigma ** 2) / (dx ** 2)) - ((r - ((sigma ** 2) / 2)) / dx))
+
+    return [pu, pm, pd]
+
+
+def calculate_put_price(time_count, no_of_paths, put_prices_next, stock_path, pu, pm, pd, type):
+    if type=="EFD":
+        return calculate_EFD(no_of_paths, put_prices_next, stock_path, pu, pm, pd)
+    elif type=="IFD":
+        return calculate_IFD(no_of_paths, put_prices_next, stock_path, pu, pm, pd)
+    elif type=="CNF":
+        return calculate_CNF(no_of_paths, put_prices_next, stock_path, pu, pm, pd)
+
+
+def calculate_EFD(no_of_paths, put_prices_next, stock_path, pu, pm, pd):
+    mat_a = np.zeros([2 * no_of_paths + 1, 2 * no_of_paths + 1])
+    mat_a[0, 0] = pu
+    mat_a[0, 1] = pm
+    mat_a[0, 2] = pd
+    for count in range(1, 2 * no_of_paths):
+        mat_a[count, count - 1] = pu
+        mat_a[count, count] = pm
+        mat_a[count, count + 1] = pd
+
+    mat_a[2 * no_of_paths, 2 * no_of_paths - 2] = pu
+    mat_a[2 * no_of_paths, 2 * no_of_paths - 1] = pm
+    mat_a[2 * no_of_paths, 2 * no_of_paths] = pd
+
+    mat_f_next = np.zeros([2 * no_of_paths + 1, 1])
+    mat_f_next[:, 0] = put_prices_next
+
+    mat_b = np.zeros([2 * no_of_paths + 1, 1])
+    mat_b[2 * no_of_paths, 0] = -(stock_path[2 * no_of_paths] - stock_path[2 * no_of_paths - 1])
+
+    mat_f = np.dot(mat_a, mat_f_next) + mat_b
+    return mat_f[:, 0]
+
+
+def calculate_IFD( no_of_paths, put_prices_next, stock_path, pu, pm, pd):
+    mat_a = np.zeros([2 * no_of_paths + 1, 2 * no_of_paths + 1])
+    mat_a[0, 0] = 1
+    mat_a[0, 1] = -1
+
+    for count in range(1, 2 * no_of_paths):
+        mat_a[count, count - 1] = pu
+        mat_a[count, count] = pm
+        mat_a[count, count + 1] = pd
+
+    mat_a[2 * no_of_paths, 2 * no_of_paths - 1] = -1
+    mat_a[2 * no_of_paths, 2 * no_of_paths] = 1
+
+    mat_b = np.zeros([2 * no_of_paths + 1, 1])
+    mat_b[1:(2*no_of_paths-1),0] = put_prices_next[1:(2*no_of_paths-1)]
+    mat_b[2 * no_of_paths, 0] = -(stock_path[2 * no_of_paths] - stock_path[2 * no_of_paths - 1])
+
+    mat_f = np.dot(linalg.inv(mat_a),mat_b)
+    return mat_f[:, 0]
+
+
+def calculate_CNF( no_of_paths, put_prices_next, stock_path, pu, pm, pd):
+    mat_a = np.zeros([2 * no_of_paths + 1, 2 * no_of_paths + 1])
+    mat_a[0, 0] = 1
+    mat_a[0, 1] = -1
+
+    for count in range(1, 2 * no_of_paths):
+        mat_a[count, count - 1] = pu
+        mat_a[count, count] = pm
+        mat_a[count, count + 1] = pd
+
+    mat_a[2 * no_of_paths, 2 * no_of_paths - 1] = -1
+    mat_a[2 * no_of_paths, 2 * no_of_paths] = 1
+
+    mat_b = np.zeros([2 * no_of_paths + 1, 1])
+    mat_b[1:(2*no_of_paths-1),0] = [-pu*put_prices_next[count-1] -(pm-2)*put_prices_next[count]
+                                    -pd*put_prices_next[count+1] for count in range(1,(2*no_of_paths-1))]
+    mat_b[2 * no_of_paths, 0] = -(stock_path[2 * no_of_paths] - stock_path[2 * no_of_paths - 1])
+
+    mat_f = np.dot(linalg.inv(mat_a),mat_b)
+    return mat_f[:, 0]
+
+
+def calculate_price_BS(sigma, r, strike, s0, time):
+    d1 = (math.log(s0 / strike) + (r + (sigma ** 2 / 2)) * time) / (sigma * math.sqrt(time))
+    d2 = d1 - sigma * math.sqrt(time)
+
+    put_price = strike * math.exp(-r * time) * st.norm.cdf(-d2) - s0 * st.norm.cdf(-d1)
+    return put_price
+
+
+s0 = 10
+answer1 = question1(s0)
+print(answer1.loc[s0,:])
+print(answer1.to_string())
+answer_mat = answer1.as_matrix()
+error_abs = np.array([(answer_mat[:,j]-answer_mat[:,len(answer_mat[0])-1])/answer_mat[:,len(answer_mat[0])-1]
+                     for j in range(0,len(answer_mat[0])-1)])
+cols = list(answer1.columns)
+cols.pop()
+print(pd.DataFrame(error_abs.transpose(),columns=cols, index=range(4,16+1)))
+
+
+
+
+
+
+```
+
+
+```{python echo=FALSE}
+import numpy as np
+from numpy import linalg
+import matplotlib.pyplot as plot
+
+def question2(currPrice):
+    sigma = 0.2
+    r = 0.04
+    dt = 0.002
+    time = 0.5;
+    strike = 10;
+
+    ds = 0.5
+    no_of_paths = int(currPrice * 2 / ds)
+
+    efdanswers = np.zeros([len(range(4,16+1)),2])
+    ifdanswers = np.zeros([len(range(4, 16 + 1)), 2])
+    cnfanswers = np.zeros([len(range(4, 16 + 1)), 2])
+
+    efdanswers[:,0] = calculate_price(sigma, r, ds, dt, no_of_paths, time, strike, "EFD", "C")
+    ifdanswers[:,0] = calculate_price(sigma, r, ds, dt, no_of_paths, time, strike, "IFD", "C")
+    cnfanswers[:,0] = calculate_price(sigma, r, ds, dt, no_of_paths, time, strike, "CNF", "C")
+
+    efdanswers[:,1] = calculate_price(sigma, r, ds, dt, no_of_paths, time, strike, "EFD", "P")
+    ifdanswers[:,1] = calculate_price(sigma, r, ds, dt, no_of_paths, time, strike, "IFD", "P")
+    cnfanswers[:,1] = calculate_price(sigma, r, ds, dt, no_of_paths, time, strike, "CNF", "P")
+
+    answers = np.column_stack((efdanswers,ifdanswers,cnfanswers))
+    return(answers)
+
+
+def calculate_price(sigma, r, ds, dt, no_of_paths, time, strike, type, optiontype):
+    # Generate Stock Path
+    stock_path = [j * ds for j in range(no_of_paths,-1,-1)]
+    option_prices_ter = [max(stockVal - strike, 0) if optiontype == "C" else max(strike - stockVal, 0)
+                         for stockVal in stock_path]
+
+    # Generate Call,PutPut Prices
+    max_time_steps = int(time / dt)
+    option_prices = np.full([no_of_paths+1, max_time_steps], np.nan)
+    option_prices[:, (max_time_steps - 1)] = option_prices_ter
+
+    if type == "EFD":
+        alpha = 1
+    elif type == "IFD":
+        alpha = 0
+    elif type == "CNF":
+        alpha = 0.5
+
+    for count in range(max_time_steps - 2, -1, -1):
+        option_prices[:, count] = fd_generalization(alpha, r, sigma, no_of_paths+1, dt,
+                                                    optiontype,option_prices[:,count+1], stock_path)
+        option_prices[:, count] = [max(option_prices[j,count],option_prices_ter[j]) for j in range(0,no_of_paths+1)]
+
+    s0_range = range(4, 16 + 1)
+    first_pos = [next(i for i, v in enumerate(stock_path) if v == count) for count in s0_range]
+    option_prices_ans = [option_prices[pos, 0] for pos in first_pos]
+
+    #return option_prices[int(no_of_paths / 2), 0]
+    return option_prices_ans
+
+
+def fd_generalization(alpha, r, sigma, no_of_paths, dt, optiontype, future_price, stock_path):
+    a1 = [((sigma ** 2) * (j ** 2) - (r * j)) * (1 - alpha) / 2 for j in range(no_of_paths-1,-1,-1)]
+    a2 = [-(1 / dt) - (((sigma ** 2) * (j ** 2) + r) * (1 - alpha)) for j in range(no_of_paths-1,-1,-1)]
+    a3 = [((sigma ** 2) * (j ** 2) + (r * j)) * (1 - alpha) / 2 for j in range(no_of_paths-1,-1,-1)]
+
+    b1 = [((sigma ** 2) * (j ** 2) - (r * j)) * alpha / 2 for j in range(no_of_paths-1,-1,-1)]
+    b2 = [(1 / dt) - (((sigma ** 2) * (j ** 2) + r) * alpha) for j in range(no_of_paths-1,-1,-1)]
+    b3 = [((sigma ** 2) * (j ** 2) + (r * j)) * alpha / 2 for j in range(no_of_paths-1,-1,-1)]
+
+    mat_a = np.zeros([no_of_paths, no_of_paths])
+    mat_a[0, 0] = 1
+    mat_a[0, 1] = -1
+
+    for count in range(1, (no_of_paths-1)):
+        mat_a[count, count - 1] = a1[count]
+        mat_a[count, count] = a2[count]
+        mat_a[count, count + 1] = a3[count]
+
+    mat_a[no_of_paths-1, no_of_paths-2] = 1 if optiontype == "C" else -1
+    mat_a[no_of_paths-1, no_of_paths-1] = -1 if optiontype == "C" else 1
+
+    mat_b = np.zeros([no_of_paths, 1])
+    mat_b[0, 0] = (stock_path[0] - stock_path[1]) if optiontype == "C" else 0
+    mat_b[no_of_paths-1, 0] = 0 if optiontype == "C" else \
+        -(stock_path[no_of_paths-1] - stock_path[no_of_paths - 2])
+
+    mat_b[1:(no_of_paths - 2), 0] = [-b1[count] * future_price[count - 1] - b2[count] * future_price[count]
+                                         - b3[count] * future_price[count + 1] for count in range(1, (no_of_paths - 2))]
+
+    mat_f = np.dot(linalg.inv(mat_a), mat_b)
+    return mat_f[:, 0]
+
+def plotAnswer(answer):
+    plot.figure()
+    plot.plot(range(4, 16 + 1), answer[:, 0], 'r--', label="Explicit", linewidth=1)
+    plot.title("Plot of American Call Prices")
+    plot.ylabel("Call prices")
+    plot.xlabel("Current stock price")
+    plot.yticks(np.arange(min(answer[:, 0]), max(answer[:, 0]) + 1, 0.25))
+
+    plot.plot(range(4, 16 + 1), answer[:, 2], 'gs', label="Implicit", linewidth=1)
+    plot.plot(range(4, 16 + 1), answer[:, 4], 'b^', label="Crank-Nicolson", linewidth=1, alpha=0.7)
+    plot.legend(loc='upper left')
+    plot.show()
+
+    plot.figure()
+    plot.plot(range(4, 16 + 1), answer[:, 1], 'r--', label="Explicit", linewidth=1)
+    plot.title("Plot of American Put Prices")
+    plot.ylabel("Put prices")
+    plot.xlabel("Current stock price")
+    plot.yticks(np.arange(min(answer[:, 0]), max(answer[:, 0]) + 1, 0.25))
+
+    plot.plot(range(4, 16 + 1), answer[:, 3], 'gs', label="Implicit", linewidth=1)
+    plot.plot(range(4, 16 + 1), answer[:, 5], 'b^', label="Crank-Nicolson", linewidth=1)
+    plot.legend(loc='upper right')
+    plot.show()
+    
+s0=10
+answer2 = question2(s0)
+plotAnswer(answer2)
+print("As can be seen, the graphs between the call and put are very similar for every method")
+
+```

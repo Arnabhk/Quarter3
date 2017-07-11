@@ -1,0 +1,264 @@
+---
+title: "Computational Finance Homework 5"
+author: "Nitish Ramkumar"
+output: pdf_document
+---
+
+#Question 1
+The American Put price is calculated for all combinations of initial stock price (S0,time K and polynomial type). This involves following the Longstaff-Schwartz Least Square Monte Carlo process for 100,000 paths (50000 with normal random numbers and 50000 with their antithetic version). 
+
+##Part a  
+**Laguerre Method**  
+```{r echo=FALSE}
+library(knitr)
+
+###Functions to build the independent variables
+BuildIndependentVariables <- function(X,type,k){
+  if(type=="Hermite"){
+    return(BuildHermite(X,k))
+  }
+  else if(type=="Laguerre"){
+    return(BuildLaguerre(X,k))
+  }
+  else if(type=="Monomial"){
+    return(BuildMonomial(X,k))
+  }
+}
+
+BuildHermite <- function(X,k){
+  output <- matrix(nrow=length(X),ncol=k)
+  for(it in 1:k){  
+      if(it == 1){
+        output[,it] <- 1
+      }
+      else if(it == 2){
+        output[,it] <- 2*X
+      }
+      else{
+        output[,it] <- 2*X*output[,it-1] - 2*(it-1)*output[,it-2] 
+      }
+  }
+  return(output)
+}
+
+BuildLaguerre <- function(X,k){
+  apply(matrix(c(1:k),nrow=1),2,function(it){
+    if(it==1){
+      output <- exp(-X/2)
+    }
+    else if(it==2){
+      output <- exp(-X/2) *(1-X)
+    }
+    else if(it==3){
+      output <- exp(-X/2)*(1 - 2*X + (X^2/2))
+    }
+    else if(it==4){
+      output <- exp(-X/2)*(1 - 3*X + 3*(X^2)/2 - (X^3)/6)
+    }
+    else if(it==5){
+      output <- exp(-X/2)*(1 - 4*X + 3*(X^2) - 2*(X^3)/3 + (X^4)/24)
+    }
+    output
+  })
+}
+
+BuildMonomial <- function(X,k){
+  apply(matrix(c(1:k),nrow=1),2,function(it){
+    X^(it-1)
+  })
+}
+
+####Function to build stock path
+BuildStockPath <- function(s0,Paths,Steps,time){
+  #Get randomValues
+  set.seed(1234)
+  randVals <- matrix(rnorm(Paths*Steps/2),ncol=Steps)
+  stockPaths <- matrix(nrow=Paths,ncol=Steps)
+  dt <- time/Steps
+    
+  temp <- t(apply(matrix(rep(1,Paths*Steps/2),nrow=Steps),2,cumsum))
+  #normal
+  stockPaths[c(1:(Paths/2)),] <- s0 * exp((r - (sigma^2)/2)*dt*temp + sigma * sqrt(dt) * t(apply(randVals,1,cumsum)))
+  
+  #antithetic
+  stockPaths[c(((Paths/2)+1):Paths),] <- s0 * exp((r - (sigma^2)/2)*dt*temp + sigma * -1 * sqrt(dt)*t(apply(randVals,1,cumsum)))
+
+  return(stockPaths)
+}
+
+
+####Function to perform LSMC
+PerformLSMC <- function(stockPaths,sigma,r, strike, Paths,Steps,time, k,type){
+  optionPayoff <- rep(NA,Paths)
+  exerciseStep <- rep(0,Paths)
+  dt <- time/Steps
+  
+  #Calculate price at T
+  optionPayoff <- pmax(strike-stockPaths[,Steps],0)
+  
+  #store step where exercising is valid. 
+  #For first iteration, set it to last step if the payoff is positive
+  exerciseStep[which(optionPayoff>0)] <- Steps
+  
+  #Now move back and calculate price at each point
+  for(stepCount in (Steps-1):1){
+      #Exercise Price for this step  
+      exercisePrice <- pmax(strike-stockPaths[,stepCount],0)
+      
+      ###Continuation price###
+      #Find all itm paths
+      ITMPaths <- which(exerciseStep != 0)
+      #Find the k X terms for the regression
+      RegXVal <- stockPaths[ITMPaths,stepCount]
+      RegX <- BuildIndependentVariables(X=RegXVal,type = type,k = k)
+      
+      #Set the Y term for the regression
+      RegY <- exp(-r * dt * (exerciseStep[ITMPaths]-stepCount)) * optionPayoff[ITMPaths]
+      
+      #Perform regression
+      out <- lm(RegY~RegX-1)
+      
+      #Calculate expected continuation price
+      continuePrice <- rep(0,length(exercisePrice))
+      continuePrice[ITMPaths] <- RegX%*%out$coefficients
+      
+      #Perform check if exercise happens here
+      exerciseThisStep <- (exercisePrice >= continuePrice) & (exercisePrice!=0)
+      
+      #update payoff
+      optionPayoff[exerciseThisStep] <- exercisePrice[exerciseThisStep]
+      exerciseStep[exerciseThisStep] <- stepCount
+  }
+  
+  Price0.All <- exp(-r * exerciseStep * dt) * optionPayoff
+  Price0 <- mean(Price0.All)
+  
+  return(Price0)
+}
+
+load("CmpHW5.RData")
+rownames(answers) <- NULL
+
+#a
+kable(answers[answers$Type=="Laguerre",c(1,2,3,5)],caption="Various combinations of Laguerre method")
+```
+  
+\pagebreak  
+
+##Part b  
+**Hermite Method**  
+```{r echo=FALSE}
+#b
+kable(answers[answers$Type=="Hermite",c(1,2,3,5)],caption="Various combinations of Hermite method")
+```
+  
+\pagebreak  
+
+##Part c  
+**Monomial Method**  
+
+```{r echo=FALSE}
+#c
+kable(answers[answers$Type=="Monomial",c(1,2,3,5)], caption="Various combinations of Monomial method")
+
+#################################################
+```
+
+**Observations**  
+1) The price converges towards expected price from binomial pricing as we increase k  
+2) The Laguerre polynomial doesn't give a good estimate for k=2  
+3) Values of Hermite and Monomial are consistent with changes in k. Both the values are very similar because both have a similar structure (sum of monomials of the form x, $x^2$, $x^3$)  
+  
+**Time taken**  
+```{r echo=FALSE}
+k <- 4
+s0 <- 40
+strike <- 40
+Paths <- 100000
+Steps <- 50
+Time <- 1
+r <- 0.06
+sigma <- 0.2
+
+timetaken <- rep(NA,3)
+
+stockPaths_timeCheck <- BuildStockPath(s0,Paths,Steps,Time)
+lagu_start <- proc.time()
+for(i in 1:20){
+  lagu_price <- PerformLSMC(stockPaths_timeCheck,sigma,r, strike, Paths,Steps,Time, k,"Laguerre") 
+}
+lagu_end <- proc.time()
+timetaken[1] <- ((lagu_end - lagu_start)[3])/20
+
+hermite_start <- proc.time()
+for(i in 1:20){
+  hermite_price <- PerformLSMC(stockPaths_timeCheck,sigma,r, strike, Paths,Steps,Time, k,"Hermite") 
+}
+hermite_end <- proc.time()
+timetaken[2] <- ((hermite_end - hermite_start)[3])/20
+
+mon_start <- proc.time()
+for(i in 1:20){
+  mon_price <- PerformLSMC(stockPaths_timeCheck,sigma,r, strike, Paths,Steps,Time, k,"Monomial") 
+}
+mon_end <- proc.time()
+timetaken[3] <- ((mon_end - mon_start)[3])/20
+
+names(timetaken) <- c("Laguerre","Hermite","Monomial")
+kable(t(timetaken))
+```
+  
+As can be seen, the time taken for Hermite and Monomial are better than Laguerre. This shows that the ordinary monomials take lesser time as compared to the orthogonal basis functions like Laguerre polynomials.  
+  
+On the whole, it is slightly better to use Monomials or Hermite over the other methods.  
+
+\pagebreak  
+
+#Question 2
+##a  
+  
+European price can be calculated by 
+1) identifying strike as stock price at T=t  
+2) calculating payoff at T=T with previously identified strike  
+3) Discount back to t=0 to get price  
+
+```{r echo=FALSE}
+set.seed(1234)
+s0 <- 65
+strike <- 60
+sigma <- 0.2
+r <- 0.06
+Paths <- 100000
+Steps <- 50
+time <- 1
+strikeTime <- 0.2
+
+stockPaths_2 <- BuildStockPath(s0,Paths,Steps,time)
+
+#European
+strikeStep <- (strikeTime/time)*Steps
+eur_forward_optPrices <- pmax(stockPaths_2[,strikeStep] - stockPaths_2[,Steps],0) * exp(-r*time)
+eur_forward_optPrice <- mean(eur_forward_optPrices)
+eur_forward_optPrice
+```
+  
+We get a price of **3.1724** 
+
+##b  
+  
+For American prices, we can use the Least Square Monte Carlo approach. It needs to be noted that for every simulation, we will have different strikes. So while running a regression at ever step, we will have more variation in the continuation value for each simulation. For this problem, we can assume that this won't cause an issue. 
+  
+The following steps can be used  
+1) Identify strike as stock price at T=t  
+2) Now, trim the stock paths from T=t to T=T and input into the least Square Monte carlo function. Use type as monomial and k = 4    
+3) Discount the price coming out of the Least Square Monte Carlo function back to T=0.  
+```{r echo=FALSE}
+#American
+k <- 4
+type <- "Monomial"
+amr_forward_optPrice <- PerformLSMC(stockPaths_2[,c(strikeStep:ncol(stockPaths_2))],sigma,r, stockPaths_2[,strikeStep], Paths,Steps-strikeStep, time, k,type)
+amr_forward_optPrice <- amr_forward_optPrice*exp(-r*strikeStep*(time/Steps))
+amr_forward_optPrice
+```
+
+We get a price of **3.3506**

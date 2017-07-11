@@ -1,0 +1,66 @@
+#Set work directory
+this.dir <- dirname(rstudioapi::getActiveDocumentContext()$path)
+setwd(this.dir)
+#a
+means1 <- read.csv("Excels/means1.csv",header = FALSE)
+means1 <- cbind(1:10,means1)
+plot(means1,type="l",main="Plot of expected price with time",ylab="Price",xlab="Time in advance")
+
+#c
+
+stocks1 <- read.csv("Excels/stocks1.csv",header = FALSE)
+stocks1 <- cbind(((1:1001)-1)/100,stocks1)
+stocks2 <- read.csv("Excels/stocks2.csv",header = FALSE)
+stocks2 <- cbind(((1:1001)-1)/100,stocks2)
+stocks3 <- read.csv("Excels/stocks3.csv",header = FALSE)
+stocks3 <- cbind(((1:1001)-1)/100,stocks3)
+stocks4 <- read.csv("Excels/stocks4.csv",header = FALSE)
+stocks4 <- cbind(((1:1001)-1)/100,stocks4)
+stocks5 <- read.csv("Excels/stocks5.csv",header = FALSE)
+stocks5 <- cbind(((1:1001)-1)/100,stocks5)
+stocks6 <- read.csv("Excels/stocks6.csv",header = FALSE)
+stocks6 <- cbind(((1:1001)-1)/100,stocks6)
+
+plot(means1,type="l",main="Plot of paths and expected value",ylim=c(50,250),ylab="Price",xlab="Time in advance")
+lines(stocks1,col="orange")
+lines(stocks2,col="blue")
+lines(stocks3,col="red")
+lines(stocks4,col="green")
+lines(stocks5,col="yellow")
+lines(stocks6,col="brown")
+#d
+means2 <- read.csv("Excels/means2.csv",header = FALSE)
+means2 <- cbind(1:10,means2)
+plot(means1,type="l",main="Change with Vol(1000 sim)", ylab="Price", xlab = "Change in Time")
+lines(means2,col="red")
+legend("bottomright",col=c("black","red"),lty = 1,c("Sigma=18%","Sigma=35%"))
+
+means1_big <- read.csv("Excels/means1_Big.csv",header = FALSE)
+means1_big <- cbind(1:10,means1_big)
+means2_big <- read.csv("Excels/means2_Big.csv",header = FALSE)
+means2_big <- cbind(1:10,means2_big)
+plot(means1_big,type="l",main="Change with Vol(60000 sim)",ylab="Price", xlab="Change in Time")
+lines(means2_big,col="red")
+legend("bottomright",col=c("black","red"),lty = 1,c("Sigma=18%","Sigma=35%"))
+
+#d2
+stocks1_2 <- read.csv("Excels/stocks1_2.csv",header = FALSE)
+stocks1_2 <- cbind(((1:1001)-1)/100,stocks1_2)
+stocks2_2 <- read.csv("Excels/stocks2_2.csv",header = FALSE)
+stocks2_2 <- cbind(((1:1001)-1)/100,stocks2_2)
+stocks3_2 <- read.csv("Excels/stocks3_2.csv",header = FALSE)
+stocks3_2 <- cbind(((1:1001)-1)/100,stocks3_2)
+stocks4_2 <- read.csv("Excels/stocks4_2.csv",header = FALSE)
+stocks4_2 <- cbind(((1:1001)-1)/100,stocks4_2)
+stocks5_2 <- read.csv("Excels/stocks5_2.csv",header = FALSE)
+stocks5_2 <- cbind(((1:1001)-1)/100,stocks5_2)
+stocks6_2 <- read.csv("Excels/stocks6_2.csv",header = FALSE)
+stocks6_2 <- cbind(((1:1001)-1)/100,stocks6_2)
+
+plot(stocks1,type="l",main="Stock paths for different vols - I",xlab="time",ylab="prices")
+lines(stocks1_2,type="l",col="red")
+legend("bottomright",c("Sigma=0.18","Sigma=0.35"),col=c("black","red"),lty=1)
+plot(stocks2,type="l",main="Stock paths for different vols - II",xlab="time",ylab="prices")
+lines(stocks2_2,type="l",col="red")
+legend("bottomright",c("Sigma=0.18","Sigma=0.35"),col=c("black","red"),lty=1)
+

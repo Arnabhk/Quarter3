@@ -1,0 +1,20 @@
+﻿  Project2.cpp
+  Generating Code...
+  Compiling...
+  Question6.cpp
+c:\_ucla\quarter3\237g_computational\projects\project2\project2\project2\question6.cpp(39): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+  Question5.cpp
+c:\_ucla\quarter3\237g_computational\projects\project2\project2\project2\question5.cpp(26): warning C4018: '<': signed/unsigned mismatch
+c:\_ucla\quarter3\237g_computational\projects\project2\project2\project2\question5.cpp(43): warning C4018: '<': signed/unsigned mismatch
+  Question4.cpp
+  Question3.cpp
+c:\_ucla\quarter3\237g_computational\projects\project2\project2\project2\question3.cpp(28): warning C4018: '<': signed/unsigned mismatch
+c:\_ucla\quarter3\237g_computational\projects\project2\project2\project2\question3.cpp(39): warning C4018: '<': signed/unsigned mismatch
+c:\_ucla\quarter3\237g_computational\projects\project2\project2\project2\question3.cpp(58): warning C4018: '<': signed/unsigned mismatch
+  Question2.cpp
+  Question1.cpp
+c:\_ucla\quarter3\237g_computational\projects\project2\project2\project2\question1.cpp(20): warning C4018: '<': signed/unsigned mismatch
+c:\_ucla\quarter3\237g_computational\projects\project2\project2\project2\question1.cpp(48): warning C4244: 'argument': conversion from 'double' to 'unsigned int', possible loss of data
+  Generating Code...
+  Project2.vcxproj -> C:\_UCLA\Quarter3\237G_Computational\Projects\Project2\Project2\Debug\Project2.exe
+  Project2.vcxproj -> C:\_UCLA\Quarter3\237G_Computational\Projects\Project2\Project2\Debug\Project2.pdb (Full PDB)

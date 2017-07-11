@@ -1,0 +1,46 @@
+﻿  Question5.cpp
+c:\_ucla\quarter3\237g_computational\projects\project1\computationalfinance_project1\project1\question5.cpp(67): warning C4018: '<': signed/unsigned mismatch
+  Question4.cpp
+c:\_ucla\quarter3\237g_computational\projects\project1\computationalfinance_project1\project1\question4.cpp(39): warning C4018: '<': signed/unsigned mismatch
+c:\_ucla\quarter3\237g_computational\projects\project1\computationalfinance_project1\project1\helpers.h(45): warning C4018: '<': signed/unsigned mismatch
+  c:\_ucla\quarter3\237g_computational\projects\project1\computationalfinance_project1\project1\question4.cpp(25): note: see reference to function template instantiation 'void PlotHistogram<double>(std::vector<double,std::allocator<_Ty>>,bool)' being compiled
+          with
+          [
+              _Ty=double
+          ]
+c:\_ucla\quarter3\237g_computational\projects\project1\computationalfinance_project1\project1\helpers.h(59): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project1\computationalfinance_project1\project1\helpers.h(71): warning C4018: '<': signed/unsigned mismatch
+  Question2.cpp
+c:\_ucla\quarter3\237g_computational\projects\project1\computationalfinance_project1\project1\helpers.h(45): warning C4018: '<': signed/unsigned mismatch
+  c:\_ucla\quarter3\237g_computational\projects\project1\computationalfinance_project1\project1\question2.cpp(17): note: see reference to function template instantiation 'void PlotHistogram<int>(std::vector<int,std::allocator<_Ty>>,bool)' being compiled
+          with
+          [
+              _Ty=int
+          ]
+c:\_ucla\quarter3\237g_computational\projects\project1\computationalfinance_project1\project1\helpers.h(59): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+c:\_ucla\quarter3\237g_computational\projects\project1\computationalfinance_project1\project1\helpers.h(71): warning C4018: '<': signed/unsigned mismatch
+c:\program files (x86)\microsoft visual studio 14.0\vc\include\xutility(2798): warning C4244: '=': conversion from 'const double' to 'int', possible loss of data
+  c:\program files (x86)\microsoft visual studio 14.0\vc\include\xutility(2822): note: see reference to function template instantiation '_OutIt std::_Fill_n_unchecked1<_OutIt,_Diff,_Ty>(_OutIt,_Diff,const _Ty &,std::false_type)' being compiled
+          with
+          [
+              _OutIt=int *,
+              _Diff=int,
+              _Ty=double
+          ]
+  c:\program files (x86)\microsoft visual studio 14.0\vc\include\xutility(2831): note: see reference to function template instantiation '_OutIt std::_Fill_n_unchecked<int*,_Diff,_Ty>(_OutIt,_Diff,const _Ty &)' being compiled
+          with
+          [
+              _OutIt=int *,
+              _Diff=int,
+              _Ty=double
+          ]
+  c:\_ucla\quarter3\237g_computational\projects\project1\computationalfinance_project1\project1\question2.cpp(41): note: see reference to function template instantiation '_OutIt std::fill_n<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<int>>>,int,double>(_OutIt,_Diff,const _Ty &)' being compiled
+          with
+          [
+              _OutIt=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<int>>>,
+              _Diff=int,
+              _Ty=double
+          ]
+  Generating Code...
+  Project1.vcxproj -> C:\_UCLA\Quarter3\237G_Computational\Projects\Project1\ComputationalFinance_Project1\Debug\Project1.exe
+  Project1.vcxproj -> C:\_UCLA\Quarter3\237G_Computational\Projects\Project1\ComputationalFinance_Project1\Debug\Project1.pdb (Full PDB)
