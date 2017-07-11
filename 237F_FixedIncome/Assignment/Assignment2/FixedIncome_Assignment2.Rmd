@@ -1,0 +1,152 @@
+---
+title: "Fixed Income Assignment 2"
+author: "Justin Ge, Yuying Wang, Carlos Quicazan, Nitish Ramkumar"
+output: pdf_document
+---
+
+```{r echo=FALSE}
+suppressMessages(require(readxl))
+suppressMessages(require(knitr))
+setwd("C:/_UCLA/Quarter3/237F_FixedIncome/Assignment/Assignment2")
+read_excel_allsheets <- function(filename) {
+    sheets <- readxl::excel_sheets(filename)
+    x <-    lapply(sheets, function(X) readxl::read_excel(filename, sheet = X))
+    names(x) <- sheets
+    x
+}
+
+data <- read_excel_allsheets("Homework 2 Data.xlsx")
+data$`T-Note` <- data$`T-Note`[-nrow(data$`T-Note`),]
+strips <- data$STRIPS
+tnote <- data$`T-Note`
+```
+
+## Question 1
+Given the STRIP prices, we can calculate the D(T) = $\frac{price}{100}$  
+The plots of the spot and forward graph are as below  
+```{r echo=FALSE}
+#1 D(T)
+strips$DT <- strips$Price/100
+strips$Spot <- 2*((1/strips$DT)^(1/(2*strips$Maturity)) - 1)
+strips$Forward <- rep(NA,nrow(strips))
+strips$Forward[1:(nrow(strips)-1)] <- ((strips$DT[1:(nrow(strips)-1)]/strips$DT[2:nrow(strips)])-1)/0.25
+
+par(mfrow=c(1,2))
+plot(y=strips$Spot,x=strips$Maturity,xlab="Maturity in years",ylab="Spot prices",main="Spot curve", type = "l")
+plot(y=strips$Forward,x=strips$Maturity,xlab="Maturity in years",ylab="Forward prices",main="3 month Forward curve", type = "l")
+```
+
+## Question 2
+
+In order to get the data for other maturities, we can run a regression between DT and various powers of maturity.  
+Once we get that, we can get D(T) for any maturity.  
+The Coefficients of regression are as below:  
+```{r echo=FALSE}
+#2
+strips$Mat2 <- strips$Maturity^2
+strips$Mat3 <- strips$Maturity^3
+strips$Mat4 <- strips$Maturity^4
+strips$Mat5 <- strips$Maturity^5
+reg <- lm(log(DT) ~ (Maturity + Mat2 + Mat3 + Mat4 + Mat5 - 1), data = strips)
+kable(t(reg$coefficients))
+```
+
+## Question 3,4,5
+Given the regression coefficients, we can find D(T) at any maturity, which allows us to find spot rate, par rate and forward rates at those maturities. The graphs are as below  
+```{r echo=FALSE}
+#3
+spot_semi <- data.frame(Mat=seq(0.5,25,by = 0.5))
+spot_semi$Mat2 <- spot_semi$Mat^2 
+spot_semi$Mat3 <- spot_semi$Mat^3 
+spot_semi$Mat4 <- spot_semi$Mat^4 
+spot_semi$Mat5 <- spot_semi$Mat^5 
+
+spot_semi$Dt <- as.matrix(spot_semi[,c("Mat","Mat2","Mat3","Mat4","Mat5")]) %*% matrix(reg$coefficients,ncol=1)
+spot_semi$Dt <- exp(spot_semi$Dt)
+spot_semi$Spot <- 2*((1/spot_semi$Dt)^(1/(2*spot_semi$Mat)) - 1)*100
+par(mfrow=c(1,3))
+plot(y=spot_semi$Spot,x=spot_semi$Mat,xlab="Maturity in years",ylab="Spot yields",main="Spot curve", type = "l")
+
+spot_semi$Par <- rep(NA,nrow(spot_semi))
+for(count in 1:nrow(spot_semi)){
+  spot_semi$Par[count] <- 200*(1-spot_semi$Dt[count])/(sum(spot_semi$Dt[1:count]))
+}
+plot(y=spot_semi$Par,x=spot_semi$Mat,xlab="Maturity in years",ylab="Par yields",main="Par curve", type = "l")
+
+spot_semi$Forward <- rep(NA,nrow(spot_semi))
+spot_semi$Forward[1:(nrow(spot_semi)-1)] <- 100*((spot_semi$Dt[1:(nrow(spot_semi)-1)]/spot_semi$Dt[2:nrow(spot_semi)])-1)/0.5
+plot(y=spot_semi$Forward,x=spot_semi$Mat,xlab="Maturity in years",ylab="forward yields",main="6 month Forward curve", type = "l")
+```
+  
+If all the graphs are plotted together    
+```{r echo=FALSE}
+par(mfrow=c(1,1))
+plot(y=spot_semi$Forward,x=spot_semi$Mat,xlab="Maturity in years",ylab="yields",main="All curves", type = "l", col="blue")
+lines(y=spot_semi$Par,x=spot_semi$Mat,col="red")
+lines(y=spot_semi$Spot,x=spot_semi$Mat,col="black")
+legend("bottomright",c("Spot","Par","Forward"),col=c("black","red","blue"),lty=1)
+```
+
+##Question 6
+
+Using Treasury coupon notes, we can run a regression between yields and powers of maturity. The coefficients of regression are as below:  
+```{r echo=FALSE}
+tnote$Mat2 <- tnote$Maturity^2
+tnote$Mat3 <- tnote$Maturity^3
+tnote$Mat4 <- tnote$Maturity^4
+tnote$Mat5 <- tnote$Maturity^5
+
+reg2 <- lm(Yield ~ Maturity+Mat2+Mat3+Mat4+Mat5 , data = tnote)
+kable(t(reg2$coefficients),col.names = c("Intecept","Mat","Mat2","Mat3","Mat4","Mat5"))
+```
+
+Now we can bootstrap the D(T) values for all values from 0.5 to 25 years. For every bootstrap D(T) calculation on a maturity, we will need all D(T) prior to that maturity and the yield for that maturity (got out of the regression)  
+```{r echo=FALSE}
+par_semi <- data.frame(Mat=seq(0.5,25,by = 0.5))
+par_semi$Mat2 <- par_semi$Mat^2 
+par_semi$Mat3 <- par_semi$Mat^3 
+par_semi$Mat4 <- par_semi$Mat^4 
+par_semi$Mat5 <- par_semi$Mat^5 
+
+par_semi$Par <- reg2$coefficients[1] + (as.matrix(par_semi[,c("Mat","Mat2","Mat3","Mat4","Mat5")]) %*% matrix(reg2$coefficients[-1],ncol=1))
+par_semi$Dt <- rep(NA,nrow(par_semi))
+for(count in 1:nrow(par_semi)){
+    par_semi$Dt[count] <- (100 - ((par_semi$Par[count]/2)*(sum(par_semi$Dt[1:count],na.rm = T))))/(100 + (par_semi$Par[count]/2))
+}
+```
+
+The Spot, Par and Forward curves are as below  
+```{r echo=FALSE}
+#Spot
+par(mfrow=c(1,3))
+par_semi$Spot <- 200*((1/par_semi$Dt)^(1/(2*par_semi$Mat)) - 1)
+plot(y=par_semi$Spot,x=par_semi$Mat,xlab="Maturity in years",ylab="Spot yield",main="Spot curve from par prices", type = "l")
+
+#Par
+plot(y=par_semi$Par,x=par_semi$Mat,xlab="Maturity in years",ylab="Par yield",main="Par curve from par prices", type = "l")
+
+#Forward
+par_semi$Forward <- rep(NA,nrow(par_semi))
+par_semi$Forward[1:(nrow(par_semi)-1)] <- 100*((par_semi$Dt[1:(nrow(par_semi)-1)]/par_semi$Dt[2:nrow(par_semi)])-1)/0.5
+plot(y=par_semi$Forward,x=par_semi$Mat,xlab="Maturity in years",ylab="Forward yields",main="6 month Forward curve using par", type = "l")
+```
+  
+If we plot all graphs together  
+```{r echo=FALSE}
+par(mfrow=c(1,1))
+plot(y=par_semi$Forward,x=par_semi$Mat,xlab="Maturity in years",ylab="yields",main="All curves", type = "l", col="blue")
+lines(y=par_semi$Par,x=par_semi$Mat,col="red")
+lines(y=par_semi$Spot,x=par_semi$Mat,col="black")
+legend("topleft",c("Spot","Par","Forward"),col=c("black","red","blue"),lty=1)
+```
+
+##Question 7  
+**Forward Yields**  
+When fitting the STRIPS curve, the spot rate was strictly increasing until a tenor of 20.5 years. After that, the spot rate begins to decrease. Therefore, the forward curve is above the spot rate before this point and is below it after this point. (If the forward curve is not above the spot curve when it is increasing, then there are arbitrage opportunities). The curve is also smoother since the spot rate it is derived from is also smoother.  
+  
+But when fitting the par curve, the spot curve is strictly increasing and then strictly decreasing. It is increasing until a tenor of 19 years, decreasing between a tenor of 19 years and 23.5 years, then increasing again after 23.5 years. As a result, our forward curve crosses the spot curve in two spots (at year 19 and at year 23.5).
+
+**Spot and Par Yields**  
+The par yields for both curves are similar. The par curve is monotonically increasing so this means we are dealing with a normal yield curve: short-term debt has a lower yield than long-term debt (upward sloping). As a result, the par yield is slightly above the spot yield at all maturities.  
+  
+One interesting thing to note is that the spot and par yields derived from fitting the STRIPS curve are generally higher than the ones fitted by the par curve. This suggests that bonds priced using the STRIPS curve are cheaper than the ones derived from the Par Curve. We attribute this to a liquidity premium. The on-the- run market for Treasury bonds is orders of magnitude larger than the STRIPS market. Therefore, they command a lower yield. When we include these points in the T-bond derived curve, our yields will get dragged lower across the board. For example, at the 6-month maturity, the STRIPS-derived spot/par yield is 3.3447\%. The 6-month maturity for the T-bond derived spot/par yield is 2.8316\%. The spread here is 51 basis points and suggests that the T-bond derived rate is richer than the STRIPS-derived rate.

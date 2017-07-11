@@ -1,0 +1,112 @@
+---
+title: "Fixed Income Homework 4"
+author: "Nitish Ramkumar, Carlos Quicazan, Justin Ge, Yuying Wang"
+output: pdf_document
+---
+
+```{r echo=FALSE}
+library(knitr)
+data <- matrix(nrow=5,ncol=6)
+data[1,] <- c(0.049,0.058,0.071,0.068,0.075,0.092)
+data[2,] <- c(0.049,0.044,0.037,0.056,0.062,0.069)
+data[3,] <- c(0.049,0.031,0.026,0.051,0.067,0.048)
+data[4,] <- c(0.049,0.05,0.061,0.069,0.069,0.06)
+data[5,] <- c(0.049,0.044,0.055,0.061,0.058,0.065)
+```
+
+#Question 1  
+The duration can be calculated as $e^{-AT}$, where A is average rate for a time horizon T. The duration is as below:    
+```{r echo=FALSE}
+meanRates <- sapply(2:ncol(data),function(x){
+  apply(data[,c(1:x)],1,mean)
+})
+
+duration <- sapply(1:ncol(meanRates),function(x){
+  exp(-x*meanRates[,x])
+})
+
+duration_mean <- apply(duration,2,mean)
+kable(t(duration_mean),col.names = c(1:5))
+```
+
+#Question 2
+Assuming that payoff for the cap at each caplet is the max(interest rate - strike,0) * 100, The mean price of the 5 year interest rate cap is as below:  
+```{r echo=FALSE}
+strike <- 0.045
+payoff <- pmax(data[,-1]-strike,0)*100
+pvpayoff <- duration*payoff
+price <- apply(pvpayoff,1,sum) 
+mean_price <- mean(price)
+mean_price
+```
+
+
+#Question 3 
+Assuming that payoff for the cap at each floorley is the max(strike - interest rate,0) * 100, The mean price of the 5 year interest rate floor is as below:
+```{r echo=FALSE}
+strike <- 0.067
+payoff <- pmax(strike-data[,-1],0)*100
+pvpayoff <- duration*payoff
+price <- apply(pvpayoff,1,sum) 
+mean_price <- mean(price)
+mean_price
+```
+
+#Question 4
+The price of the 5 year caplet (assuming payoff is on an amount of 100) is as below:
+```{r echo=FALSE}
+strike <- 0.067
+period <- 5
+payoff_cap <- pmax(data[,period+1]-strike,0)*100
+price_cap <- payoff_cap * duration[,period]
+price_cap_mean <- mean(price_cap)
+price_cap_mean
+```
+
+The price of the 5 year floorlet (assuming payoff is on an amount of 100) is as below
+```{r echo=FALSE}
+payoff_floor <- pmax(strike - data[,period+1],0)*100
+price_floor <- payoff_floor * duration[,period]
+price_floor_mean <- mean(price_floor)
+price_floor_mean
+```
+The 5 year Floorlet is more valuable than the 5 year caplet.  
+  
+#Question 5
+The price of the 5 year caplet (assuming payoff is on an amount of 100) is as below:  
+```{r echo=FALSE}
+strike <- 0.063
+period <- 5
+
+payoff_cap <- pmax(data[,period+1]-strike,0)*100
+price_cap <- payoff_cap * duration[,period]
+price_cap_mean <- mean(price_cap)
+price_cap_mean
+```
+
+The price of the caplet on 5 year average rate (assuming payoff is on an amount of 100) is as below:  
+```{r echo=FALSE}
+payoff_avg <- pmax(meanRates[,period]-strike,0)*100
+price_avg <- payoff_avg * duration[,period]
+price_avg_mean <- mean(price_avg)
+price_avg_mean
+```
+
+So the 5 year caplet is more valuable than the 5 year caplet on average rates.  
+
+#Question 6
+The standard deviation on the 5 year interest rates is as below:
+```{r echo=FALSE}
+rate5 <- sd(data[,period+1])
+rate5
+```
+
+The standard deviation on the average interest rates over 5 year period is as below:
+```{r echo=FALSE}
+avgrate5 <- sd(meanRates[,period])
+avgrate5
+```
+We are more than 99\% confident of the price of the 5 year average rate call option, but we can't be 99\% sure of the price of the 5 year call option    
+  
+ 
+

@@ -1,0 +1,120 @@
+---
+title: "HW1"
+date: "April 13, 2017"
+author: "Justin Ge, Nitish Ramkumar, Carlos Quicazan, Yuying Wang"
+output: pdf_document
+---
+
+1. Solve for the price of a Treasury bond with a coupon rate of 10 percent and a maturity date of 25 years. The yield on the bond is 2 percent.
+
+$$
+\begin{aligned}
+PV=\sum_{i=1}^{t}\frac{C}{(1+r)^{i}}+\frac{FV}{(1+r)^{t}}=\mathrm{C}\frac{1-(1+r)^{-t}}{r}+FV(1+r)^{-t}
+\end{aligned} 
+$$
+```{r}
+t = 25*2
+r = 0.02/2
+C = 5
+FV = 100
+C*(1-(1+r)^(-t))/r+FV*(1+r)^(-t)
+```
+####Therefore, price is $256.7845
+
+2. What would be the most you would be willing to pay for a share of preferred stock paying a semiannual coupon of $6.25. Assume that the discount rate is 7 percent.
+####C = 6.25, r = 0.07/2
+$$
+\begin{aligned}
+PV=\sum_{i=1}^{\infty}\frac{C}{(1+r)^{i}}=\frac{C}{r}
+\end{aligned} 
+$$
+```{r}
+C = 6.25
+r = 0.07/2
+C/r
+```
+####Stock value is 6.25/0.07*2=$178.5714
+
+
+3. You have sold an apartment house you owned by accepting $1,000,000 down and monthly payments of $14,000 per month for 10 years. Your plans are to place the entire down payment and all payments as they are received into a money market fund earning 4 percent compounded monthly. How large will your accumulated sum be when the mortgage is paid off?
+$$
+\begin{aligned}
+FV=\sum_{i=1}^{t}\mathrm{PMT}(1+r)^{i-1}+D(1+r)^{t}=\mathrm{PMT}\frac{(1+r)^{t}-1}{r}+D(1+r)^{t}
+\end{aligned} 
+$$
+
+```{r}
+t = 120.0
+MP = 14000.0
+D = 1000000.0
+r = 0.04/12.0
+format(round(MP*((1+r)^t-1)/r+D*(1+r)^t, 2), nsmall = 2)
+```
+####Accumulated sum is $3,552,329.95
+
+4. You are considering purchasing a share of common stock in an airline. The dividends on this common stock have been growing at a 3 percent rate for the past 20 years, and you expect this to continue indefinitely. Dividends are expected to be $10 per share at the end of the year ahead, and you think 12 percent is the appropriate rate of return on this stock. How much would you be willing to pay for this stock?
+$$
+\begin{aligned}
+PV=\frac{D}{r-g}
+\end{aligned} 
+$$
+```{r}
+D = 10
+r = 0.12
+g = 0.03
+D/(r-g)
+```
+####Willing to pay $111.111
+
+5. What is the present value of a stream of cash flows expected to grow at a 10 percent rate per year for 5 years and then remain constant thereafter until the final payment in 30 years. The payment the end of the first year is $1,000 and the discount rate is 3.50 percent.
+$$
+\begin{aligned}
+PV&=\frac{CF}{r-g}(1-\frac{(1+g)^{4}}{(1+r)^4})+CF\frac{(1+g)^{4}}{r(1+r)^4}(1-\frac{1}{(1+r)^{26}})
+\end{aligned} 
+$$
+If growth for 5 years includes the initial $1000.
+
+```{r}
+t = 4
+CF = 1000
+r = 0.035
+g = 0.1
+CF*(1-(1+g)^t/((1+r)^t))/(r-g)+CF*(1+g)^(t)/(r*(1+r)^t)*(1-1/(1+r)^(30-t))
+```
+####Present Value is $25,794.32
+
+If growth for 5 years doesn't include the initial $1000.
+```{r}
+t = 5
+CF = 1000
+r = 0.035
+g = 0.1
+CF*(1-(1+g)^t/((1+r)^t))/(r-g)+CF*(1+g)^(t)/(r*(1+r)^t)*(1-1/(1+r)^(30-t))
+```
+####Present Value is $27,826.05  
+
+6. What is the value of an annuity that starts in year 21 and goes until year 45. The annuity is $10,000 per year and the discount rate is 3 percent. 
+$$
+\begin{aligned}
+PV=\sum_{i=21}^{45}\frac{PMT}{(1+r)^i}=\frac{PMT}{r}(\frac{1}{(1+r)^{20}}-\frac{1}{(1+r)^{45}})
+\end{aligned} 
+$$
+```{r}
+PMT = 10000
+r = 0.03
+PMT/r * (1/(1+r)^20-1/(1+r)^45)
+```
+####The value is $96,412.38
+
+7. A 6% 20-year AA rated corporate bond is priced at $893.22. What is the yield to maturity on the bond?
+$$
+\begin{aligned}
+PV=\sum_{i=1}^{20}\frac{C}{(1+r)^{i}}+\frac{FV}{(1+r)^{20}}= 893.22
+\end{aligned} 
+$$
+
+```{r}
+
+```
+####Using the IRR function in excel, the yield to maturity on the bond is 7%
+

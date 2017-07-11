@@ -1,0 +1,264 @@
+---
+title: "Fixed Income Assignment 3"
+author: "Nitish Ramkumar, Carlos Quicazan, Yuying Wang, Justin Ge"
+output: pdf_document
+---
+
+```{r echo=FALSE}
+suppressMessages(require(readxl))
+suppressMessages(require(knitr))
+setwd("C:/_UCLA/Quarter3/237F_FixedIncome/Assignment/Assignment2")
+read_excel_allsheets <- function(filename) {
+    sheets <- readxl::excel_sheets(filename)
+    x <-    lapply(sheets, function(X) readxl::read_excel(filename, sheet = X))
+    names(x) <- sheets
+    x
+}
+
+data <- read_excel_allsheets("Homework 2 Data.xlsx")
+data$`T-Note` <- data$`T-Note`[-nrow(data$`T-Note`),]
+tnote <- data$`T-Note`
+tnote$Mat2 <- tnote$Maturity^2
+tnote$Mat3 <- tnote$Maturity^3
+tnote$Mat4 <- tnote$Maturity^4
+tnote$Mat5 <- tnote$Maturity^5
+reg2 <- lm(Yield ~ Maturity+Mat2+Mat3+Mat4+Mat5 , data = tnote)
+
+par_semi <- data.frame(Mat=seq(0.5,25,by = 0.5))
+par_semi$Mat2 <- par_semi$Mat^2 
+par_semi$Mat3 <- par_semi$Mat^3 
+par_semi$Mat4 <- par_semi$Mat^4 
+par_semi$Mat5 <- par_semi$Mat^5 
+
+par_semi$Par <- reg2$coefficients[1] + (as.matrix(par_semi[,c("Mat","Mat2","Mat3","Mat4","Mat5")]) %*% matrix(reg2$coefficients[-1],ncol=1))
+par_semi$Dt <- rep(NA,nrow(par_semi))
+for(count in 1:nrow(par_semi)){
+    par_semi$Dt[count] <- (100 - ((par_semi$Par[count]/2)*(sum(par_semi$Dt[1:count],na.rm = T))))/(100 + (par_semi$Par[count]/2))
+}
+```
+
+#Question 1
+The par rates using the bootstrapped zero coupon curves is as below from 1 to 25 years  
+```{r echo=FALSE}
+par_semi$ParRa <- rep(NA,nrow(par_semi))
+for(count in 1:nrow(par_semi)){
+  par_semi$ParRa[count] <- 200*(1-par_semi$Dt[count])/(sum(par_semi$Dt[1:count]))
+}
+result1 <- par_semi[seq(2,50,by=2),c("Mat","ParRa")]
+kable(result1[c(1,2,3,23,24,25),])
+plot(x=result1$Mat, y =result1$ParRa, main="Par Rate for the various maturities", xlab="Maturity", ylab="Par Rate", type="l")
+```
+
+#Question 2
+DV01 can be caulated by decreasing the par rate by 1 bps and then finding the change in price.  
+```{r echo=FALSE}
+q2 <- par_semi[seq(2,50,by=2),c("Mat","ParRa","Dt")]
+parRateMinus1 <- q2$ParRa - 0.01
+
+
+q2$PriceDV01 <- (q2$ParRa/2)*(1/(parRateMinus1/200)*(1 - (1/(1+(parRateMinus1/200))^(2*q2$Mat)))) + 100/((1+(parRateMinus1/200))^(2*q2$Mat))
+
+q2$DV01 <- q2$PriceDV01 - 100
+kable(q2[c(1,2,3,23,24,25),c("Mat","DV01")],col.names = c("Maturity","DV01"))
+plot(x=q2$Mat, y =q2$DV01, main="DV01 for the various maturities", xlab="Maturity", ylab="DV01", type="l")
+```
+
+#Question 3
+
+The Macauley and modified duration are:  
+```{r echo=FALSE}
+q3 <- par_semi[1:10,c("Mat","ParRa","Dt")]
+q3$MCDuration <- rep(NA,nrow(q3))
+q3$ModDuration <- rep(NA,nrow(q3))
+q3$Price <- rep(NA,nrow(q3))
+for(i in 1:nrow(q3))
+{
+  numtr <- sum((1:i) * (q3$ParRa[i]/2) * q3$Dt[1:i]) + (i*100*q3$Dt[i])
+  q3[i,"Price"] <- sum((q3$ParRa[i]/2) * q3$Dt[1:i]) + (100*q3$Dt[i])
+  q3[i,"MCDuration"] <- numtr / (q3[i,"Price"]*2)
+  q3[i,"ModDuration"] <- q3[i,"MCDuration"]/(1+(q3$ParRa[i]/200))
+}
+kable(q3[c(2,4,6,8,10),c("Mat","MCDuration","ModDuration")], col.names = c("Maturity","Macauley Duration","Modified Duration"))
+```
+
+#Question 4
+The initial investment in in a 3 year zero coupon bondm is the present value of a liability of $5000000. This will be D(3) * 5000000. The value is:  
+```{r echo=FALSE}
+liabAmt <- 5000000
+pv <- liabAmt * par_semi[par_semi$Mat == 3,"Dt"]
+pv
+```
+
+#Question 5  
+The convexity formula can be applied and the resultant values are: 
+```{r echo=FALSE}
+k <- 2
+q5 <- q3[1:10,c("Mat","ParRa","Dt","ModDuration")]
+q5$Convexity <- rep(NA,nrow(q5))
+for(i in 1:nrow(q5))
+{
+  numtr <- sum((1:i) * ((1:i) + 1) * (q5$ParRa[i]/2) * q5$Dt[1:i]) + (i * (i+1) * 100 * q5$Dt[i])
+  dtr <- ((1+(q5$ParRa[i]/(k*100)))^2) * (k^2) * 100
+  q5[i,"Convexity"] <- numtr / dtr
+}
+kable(q5[c(2,4,6,8,10),c("Mat","Convexity")],col.names=c("Maturity","Convexity"))
+```
+
+#Question 6
+Firstly, we can use the formula with duration and convexity to calculate change in price for a 1\% hike or fall in interest rates.  
+Secondly, we get the price with a spot curve increase and decrease of 1\%.
+
+```{r echo=FALSE}
+q5$up100bp <- rep(NA,nrow(q5))
+q5$down100bp <- rep(NA,nrow(q5))
+for(i in 1:nrow(q5)){
+  q5[i,"up100bp"] <- -q5[i,"ModDuration"] *0.01 * 100 + (0.5 * q5[i,"Convexity"] * (0.01)^2 * 100)
+  q5[i,"down100bp"] <- q5[i,"ModDuration"] *0.01 * 100 + (0.5 * q5[i,"Convexity"] * (0.01)^2 * 100)
+}
+
+
+q5$Spot <- 200*((1/q5$Dt)^(1/(2*q5$Mat)) - 1)
+q5$DtNew_up <- 1/((1+((q5$Spot+1)/200))^(2*q5$Mat))
+q5$DtNew_down <- 1/((1+((q5$Spot-1)/200))^(2*q5$Mat))
+
+q5$NewPrice_up <- rep(NA,nrow(q5))
+q5$NewPrice_down <- rep(NA,nrow(q5))
+
+for(i in 1:nrow(q5)){
+   q5[i,"NewPrice_up"]<- sum((q5$ParRa[i]/2) * q5$DtNew_up[1:i]) + (100 * q5$DtNew_up[i])
+   q5[i,"NewPrice_down"]<- sum((q5$ParRa[i]/2) * q5$DtNew_down[1:i]) + (100 * q5$DtNew_down[i])
+}
+
+q5$up_priceCh <- (q5$NewPrice_up - 100)
+q5$down_priceCh <- (q5$NewPrice_down - 100) 
+
+kable(q5[c(2,4,6,8,10),c("Mat","up100bp","down100bp","up_priceCh","down_priceCh")])
+```
+
+#Case
+##Compute Prices 
+Let us calculate the initial price using the 5\% coupon and yield rate for the note and the 0.75\% yield rate for the zero coupon TBill.    
+```{r echo=FALSE}
+getPrice <- function(C,Y,N,TBillRate){
+  price.bill <- 100/(1+(TBillRate/2))^2
+  price.note <- (C*100/Y)*(1 - 1/((1+0.5*Y)^(N*2))) + 100/((1+0.5*Y)^(N*2))
+  matrix(c(price.bill,price.note),nrow=1)
+}
+
+C <- 0.05
+Y <- 0.05
+TBillRate <- 0.0075
+N <- 10
+prices <- getPrice(C,Y,N,TBillRate)
+kable(prices,col.names = c("Bill","Note"))
+
+```
+
+##Compute Durations
+Given the coupon and the yield value, we can calculate the macauley and the modifeid duration for both assets.
+```{r echo=FALSE}
+suppressMessages(library(derivmkts))
+duration.bill <- 1
+md.bill <- duration(prices[1],0,1,100,2,modified = T)
+
+durationWithCoupon <- function(C,Y,N){
+  duration <- (sum(seq(0.5,N,0.5) * (100*C/2) / ((1+(Y/2))^(1:(2*N)))) + (100 * N / (1+(Y/2))^(2*N)))/100
+  md <-  duration/(1+(Y/2))
+  return(md)
+} 
+
+md.note <- durationWithCoupon(C,Y,N)
+kable(matrix(c(md.bill,md.note),nrow=1),col.names = c("Bill","Note"))
+```
+
+##Compute amounts
+We can form a weighted sum of the bills and notes and match its duration to the duration of the yahoo bond. This will gives us the weight for the bils and the notes. The weights in percentage are as below: 
+
+```{r echo=FALSE}
+BondN <- 7
+BondC <- 0.11
+BondY <- 0.08
+bond.price <- getPrice(BondC,BondY,BondN,TBillRate)[2]
+md.bond <- duration(bond.price,11,7,100,2,modified = T)
+
+amount.note <- (md.bond - md.bill)/(md.note - md.bill)
+amount.bill <- 1 - amount.note
+
+amounts <- matrix(c(amount.bill*100,amount.note*100),nrow=1)
+                  
+kable(amounts,col.names = c("Bill","Note"))
+```
+
+##Value change due to decrease of 100 bps
+The Value due to a change of 100bps   can be calculated as (New Price - Old Price) * Original Amount.  
+```{r echo=FALSE}
+Y.New2 <- 0.045
+TBillRate.New2 <- 0.0025
+price.new2 <- getPrice(C,Y.New2,N,TBillRate.New2)
+
+md.bill.new2 <- duration.bill/(1+(TBillRate.New2/2))
+md.note.new2 <- duration(price.new2[2],C*100,N,100,2,modified = T)
+
+BondY.new2 <- 0.075
+bond.price.new2 <- getPrice(BondC,BondY.new2,BondN,TBillRate.New2)[2]
+
+valchange <-  ((amounts[2]/100)*(price.new2[2]-prices[2]) + (amounts[1]/100)*(price.new2[1]-prices[1]) - (bond.price.new2 - bond.price))/bond.price
+valchange
+```
+
+##Reimmunization (decrease of 100bps)
+In this case, after bumping the rates, we can re-calculate the weights using the new duration information.    
+```{r echo=FALSE}
+md.bond.new2 <- duration(bond.price.new2,BondC*100,BondN,100,2,modified = T)
+amount.note.new2 <- (md.bond.new2 - md.bill.new2)/(md.note.new2 - md.bill.new2)
+amount.bill.new2 <- 1 - amount.note.new2
+amounts.new2 <- matrix(c(amount.bill.new2*100,amount.note.new2*100),nrow=1)
+colnames(amounts.new2) <- c("Bill","Note")
+amounts.new2
+```
+  
+So the difference between the 2 situations is  
+```{r echo=FALSE}
+result2 <- matrix((amounts - amounts.new2)*bond.price/100,nrow=1)
+colnames(result2) <- c("Bill","Note")
+result2
+```
+So, we need to short the bills and long the notes with a total value of $0.04852805 for a $100 face value yahoo bond.  
+  
+##Change due to increase of 100bps
+Similar formulas to the previous case can be used. The change in value is: 
+```{r echo=FALSE}
+Y.New <- 0.055
+TBillRate.New <- 0.0125
+price.new <- getPrice(C,Y.New,N,TBillRate.New)
+md.bill.new <- duration.bill/(1+(TBillRate.New/2))
+md.note.new <- duration(price.new[2],C*100,N,100,2,modified = T)
+
+BondY.new <- 0.085
+bond.price.new <- getPrice(BondC,BondY.new,BondN,TBillRate.New)[2]
+
+valchange2 <- ((amounts[2]/100)*(price.new[2]-prices[2]) + (amounts[1]/100)*(price.new[1]-prices[1]) - (bond.price.new - bond.price))/(bond.price)
+valchange2
+```
+
+##Reimmunization (increase of 100bps)
+The new weights after re-calculating using new yields is as follows:  
+
+```{r echo=FALSE}
+md.bond.new <- duration(bond.price.new,BondC*100,BondN,100,2,modified = T)
+amount.note.new <- (md.bond.new - md.bill.new)/(md.note.new - md.bill.new)
+amount.bill.new <- 1 - amount.note.new
+amounts.new1 <- matrix(c(amount.bill.new*100,amount.note.new*100),nrow=1)
+colnames(amounts.new1) <- c("Bill","Note")
+amounts.new1
+```
+
+So the difference between the 2 situations is          
+```{r echo=FALSE}
+result1 <- matrix((amounts - amounts.new1)*bond.price/100,nrow=1)
+colnames(result1) <- c("Bill","Note")
+result1
+```
+        
+      
+So, we need to long the bills and short the notes with a total value of $0.05365516 for a $100 face value yahoo bond.  

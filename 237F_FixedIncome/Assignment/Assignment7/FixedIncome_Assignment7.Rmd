@@ -1,0 +1,149 @@
+---
+title: "Fixed Income Assignment 7"
+output: pdf_document
+---
+
+#Question 1
+
+We know dynamics of D(t,T) as   
+  
+dD(t,$T_i$) = r D(t,$T_i$) + $\sigma$ (T-t) $dZ_i$  
+  
+$\sigma$ is based on the time to maturity of the bond. We have different $\sigma$ for various maturities, but is constant across bonds    
+  
+```{r echo=FALSE}
+library(knitr)
+setwd("C:/_UCLA/Quarter3/237F_FixedIncome/Assignment/Assignment7")
+corr_mat <- read.csv("corrin.csv",header=FALSE)
+corchol <- read.csv("corchol.csv",header=FALSE)
+dt_raw <- read.csv("pfilea.csv",header=FALSE)
+vol_raw <- read.csv("sigma.csv",header=FALSE)
+dt <- dt_raw[1:20,]
+vol <- vol_raw[1:19,]
+
+set.seed(1234)
+
+#Function to calculate dt for each time step
+simulate_dts <- function(dtCur, stepCount, noOfSims){
+  dtime <- 0.5
+  r <- 2*((1/dtCur[1])-1)
+  dtCur <- dtCur[-1]
+  
+  volCur <- vol[1:(length(vol)-stepCount+1)]
+  corrCur <- corr_mat[2:(length(volCur)+1),2:(length(volCur)+1)]
+  
+  #Collection of all random variables for all simulations
+  zmat <- matrix(rnorm(n=noOfSims*length(volCur),sd=sqrt(dtime)),nrow=length(volCur), ncol=noOfSims)
+  #Handle the choleksy
+  z_calc <- t(chol(corrCur))%*%zmat
+  
+  #Construct next value based on bond dynamics
+  ans <- dtCur + (r * dtime * dtCur) + (volCur * dtCur *z_calc)
+  dt_next <- rowMeans(ans)
+  return(dt_next)  
+}
+
+all_dts <- matrix(0,nrow=20,ncol=20)
+all_dts[,1] <- dt
+dtCur <- dt
+noOfSims <- 10000
+for(stepCount in c(1:19)){
+  dtCur <<- simulate_dts(dtCur, stepCount, noOfSims)
+  all_dts[,(stepCount+1)] <- c(rep(0,nrow(all_dts)-length(dtCur)),dtCur)
+}
+
+kable(all_dts[,1:7],col.names = seq(0.5,3.5,0.5), caption="first 7 time steps")
+kable(all_dts[,8:14],col.names = seq(4,7,0.5), caption="next 7 time steps")
+kable(all_dts[,15:20],col.names = seq(7.5,10,0.5), caption="final 6 time steps")
+```
+
+The plot of how maturity 10 bond changes with time is as below  
+```{r echo=FALSE}
+plot(y=all_dts[20,],x=c(1:20),type="l", main="Plot of evolution of 0.5 duration")
+```
+
+The plot of the diagonal elements (which is evolution of D(0.5))  
+```{r echo=FALSE}
+diag <- c()
+for(i in c(1:20)){
+  diag[i] <- all_dts[i,i]
+}
+plot(y=diag,x=c(1:20),type="l", main="plot of D(0.5) changes with time")
+```
+
+
+#Question 2
+The forward par rates can be calculated by using the initial dt values. The forward par rates starts at 5 years, and has maturity of 1,2,3,4,5 years.   
+
+```{r echo=FALSE}
+n <- 10 #5 years
+forward_year <- c(1,2,3,4,5)
+m_all <- 2*forward_year
+
+forward_rates <- sapply(m_all, function(m){2 * 100 * (dt[n] - dt[n+m])/(sum(dt[(n+1):(n+m)]))})
+kable(t(forward_rates),col.names=(c(1:5)))
+plot(y=forward_rates,x=forward_year,main="Forward rates from year 5", type="l")
+```
+
+#Question 3
+
+For this question, for every simulation, we will calculate the dt for all time periods and use that to calculate the price of the coupon bond (coupon based on the prar rate from previous question). Using the price, we can get the minimum price and compare it with price of no cheapest to deliver option (in this case we assume the 5 year forward bond 5 years from now). Once we repeat this for all simulations, we can get the price of the option.  
+
+The price of the option at time = 5 is the difference between price with no cheapest to deliver option (a 1,2,3,4, 5 year bond after time 5), and option with a cheapest to deliver option. The values when we choose different bonds for the non-cheapest to delivery comparison is:
+
+```{r echo=FALSE}
+#Coupon bonds price calculation
+price_coupon_bonds <- function(coupon,n, maturity, dts){
+  couponCount <- maturity*2
+  coups <-  sapply(c(1:couponCount),function(i){(coupon/2) * (prod(dts[(n+1):(n+i)]))})
+  fv_pv <- 100 * prod(dts[n:n+couponCount])
+  return ((sum(coups)+fv_pv))
+}
+
+noOfSims <- 10000
+PricewithCtd <- c()
+PricewithoutCtd_1 <- c()
+PricewithoutCtd_2 <- c()
+PricewithoutCtd_3 <- c()
+PricewithoutCtd_4 <- c()
+PricewithoutCtd_5 <- c()
+set.seed(1234)
+for(simCount in 1:noOfSims){
+  all_dts_3 <- matrix(0,nrow=20,ncol=20)
+  all_dts_3[,1] <- dt
+  
+  #Calculate path of dt for all bonds using Question 1  
+  dtCur_3 <- dt
+  for(stepCount in c(1:19)){
+    dtCur_3 <<- simulate_dts(dtCur_3, stepCount, 1)
+    all_dts_3[,(stepCount+1)] <- c(rep(0,nrow(all_dts_3)-length(dtCur_3)),dtCur_3)
+  } 
+
+  #Calculate bond price at 
+  price_at5 <- sapply(c(1:length(forward_rates)),function(x){price_coupon_bonds(forward_rates[x],5,x,diag(all_dts_3))})  
+  PricewithCtd[simCount] <- min(price_at5)
+  PricewithoutCtd_1[simCount] <- price_coupon_bonds(forward_rates[1],5,1,diag(all_dts_3))
+  PricewithoutCtd_2[simCount] <- price_coupon_bonds(forward_rates[2],5,2,diag(all_dts_3))
+  PricewithoutCtd_3[simCount] <- price_coupon_bonds(forward_rates[3],5,3,diag(all_dts_3))
+  PricewithoutCtd_4[simCount] <- price_coupon_bonds(forward_rates[4],5,4,diag(all_dts_3))
+  PricewithoutCtd_5[simCount] <- price_coupon_bonds(forward_rates[5],5,5,diag(all_dts_3))
+}
+
+
+ctdprice <- mean(PricewithCtd)
+
+
+answers <- c(mean(PricewithoutCtd_1) - ctdprice,mean(PricewithoutCtd_2) - ctdprice,mean(PricewithoutCtd_3) - ctdprice,
+             mean(PricewithoutCtd_4) - ctdprice,mean(PricewithoutCtd_5) - ctdprice)
+kable(t(answers),col.names = c(1:5))
+```
+
+The price of the 5 bonds are
+```{r echo=FALSE}
+kable(t(c(mean(PricewithoutCtd_1),mean(PricewithoutCtd_2),mean(PricewithoutCtd_3),mean(PricewithoutCtd_4),mean(PricewithoutCtd_5))), col.names=c(1:5),caption="Price of all bonds available")
+```
+
+The price of the CTD is:
+```{r echo=FALSE}
+ctdprice
+```

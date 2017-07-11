@@ -1,0 +1,353 @@
+---
+title: "Fixed Income Assignment 5"
+author: "Nitish Ramkumar, Justin Ge, Carlos Quicazan, Yuying Wang"
+output: pdf_document
+---
+
+```{r echo=FALSE}
+library(knitr)
+calculateRMSE <- function(params,returnRmse){
+  
+  dataNew <- copy(data)
+  alphax <- params[1]
+  sigmax <- params[2]
+  sigmay <- params[3]
+  betax <- params[4]
+  betay <- params[5]
+  
+  if(sigmax<0 | sigmay<0 | betax <0 | betay <0){
+    return(99999999)
+  }
+  
+  Ax0.25 <- calculateA(alphax,betax,sigmax,0.25)
+  Bx0.25 <- calculateB(betax,0.25)
+  Ay0.25 <- calculateA(0,betay,sigmay,0.25)
+  By0.25 <- calculateB(betay,0.25)
+
+  Ax10 <- calculateA(alphax,betax,sigmax,10)
+  Bx10 <- calculateB(betax,10)
+  Ay10 <- calculateA(0,betay,sigmay,10)
+  By10 <- calculateB(betay,10)
+  
+  dataNew[,c("X","Y"):=.(calculateX(cmt0.25/100,cmt10/100,Ax0.25,Bx0.25,Ay0.25,By0.25,Ax10,Bx10,Ay10,By10,0.25,10),
+                         calculateY(cmt0.25/100,cmt10/100,Ax0.25,Bx0.25,Ay0.25,By0.25,Ax10,Bx10,Ay10,By10,0.25,10))]
+  
+  
+  for(mat in seq(0.5,10,0.5)){
+    dataNew[,paste0("D",mat):=calculateDT(alphax,betax,sigmax,sigmay,betay,mat,X,Y)]
+  }
+  
+  dataNew[,c("Par2","Par3","Par5","Par7","Par10"):=
+                .(200*(1-D2)/(D0.5+D1+D1.5+D2),
+                  200*(1-D3)/(D0.5+D1+D1.5+D2+D2.5+D3),
+                  200*(1-D5)/(D0.5+D1+D1.5+D2+D2.5+D3+D3.5+D4+D4.5+D5),
+                  200*(1-D7)/(D0.5+D1+D1.5+D2+D2.5+D3+D3.5+D4+D4.5+D5+D5.5+D6+D6.5+D7),
+                  200*(1-D10)/(D0.5+D1+D1.5+D2+D2.5+D3+D3.5+D4+D4.5+D5+D5.5+D6+D6.5+D7+D7.5
+                                                     +D8+D8.5+D9+D9.5+D10))]
+  
+  dataNew[,rmse := sqrt((Par2-cmt2)^2 + (Par3-cmt3)^2 + (Par5-cmt5)^2+ (Par7-cmt7)^2)/4]
+  if(returnRmse){
+    return(mean(dataNew$rmse))
+  }
+  else{
+    return(dataNew[,c("D2","D3","D5","D7","D10","Par2","Par3","Par5","Par7","Par10","X","Y")])
+  }
+}
+
+calculateA <- function(alpha,beta,sigma,Time){
+  term1 <- (sigma^2/(2*(beta^2)) - alpha/beta)*Time
+  term2 <- ((alpha/(beta^2)) - (sigma^2)/(beta^3))*(1-exp(-beta*Time))
+  term3 <- (sigma^2)*(1-exp(-2*beta*Time))/(4*(beta^3))
+  
+  return(exp(term1+term2+term3))
+}
+
+calculateB <- function(beta,Time){
+  ans <- (1-exp(-beta*Time))/beta
+  return(ans)
+}
+
+calculateY <- function(p1,p2,Ax1,Bx1,Ay1,By1,Ax2,Bx2,Ay2,By2,t1,t2){
+  numtr <- (p1*Bx2/t2) - (p2*Bx1/t1) + (log(Ax1) + log(Ay1))*Bx2/(t1*t2)  - (log(Ax2) + log(Ay2))*Bx1/(t1*t2)  
+  dntr <- (By1*Bx2 - By2*Bx1)/(t1*t2)
+  return(numtr/dntr)
+}
+
+
+calculateX <- function(p1,p2,Ax1,Bx1,Ay1,By1,Ax2,Bx2,Ay2,By2,t1,t2){
+  numtr <- (p1*By2/t2) - (p2*By1/t1) + (log(Ax1) + log(Ay1))*By2/(t1*t2)  - (log(Ax2) + log(Ay2))*By1/(t1*t2)  
+  dntr <- (Bx1*By2 - Bx2*By1)/(t1*t2)
+  return(numtr/dntr)
+}
+
+calculateX_Nr <- function(p1,p2,Ax1,Bx1,Ay1,By1,Ax2,Bx2,Ay2,By2,t1,t2){
+  numtr <- (p1*By2/t2) - (p2*By1/t1) + (log(Ax1) + log(Ay1))*By2/(t1*t2)  - (log(Ax2) + log(Ay2))*By1/(t1*t2)  
+  return(numtr)
+}
+
+calculateX_Dr <- function(p1,p2,Ax1,Bx1,Ay1,By1,Ax2,Bx2,Ay2,By2,t1,t2){
+  dntr <- (Bx1*By2 - Bx2*By1)/(t1*t2)
+  return(dntr)
+}
+
+calculateDT <- function(alphax,betax,sigmax,sigmay,betay,mat,X,Y){
+  return(calculateA(alphax,betax,sigmax,mat)*exp(-calculateB(betax,mat)*X)*
+         calculateA(0,betay,sigmay,mat)*exp(-calculateB(betay,mat)*Y))
+}
+
+calculatePar <- function(mat,dataNew){
+  sumDt <- 0.0
+  for(count in seq(0.5,mat,0.5)){
+    sumDt = sumDt + dataNew[]
+  }
+}
+
+suppressMessages(library(data.table))
+setwd("C:/_UCLA/Quarter3/237F_FixedIncome/Assignment/Assignment5")
+data <- read.csv("Homework_5.csv")
+data <- data.table(data)
+
+#alphax <- 0.0347
+#betax <- 0.000022
+#betay <- 0.3998
+#sigmax <- 0.0508
+#sigmay <- 0.2033
+alphax <- 0.1
+betax <- 0.3
+betay <- 0.5
+sigmax <- 0.25
+sigmay <- 0.35
+
+#calculateRMSE(c(alphax,sigmax,sigmay, betax,betay),TRUE)
+output <- optim(par=c(alphax,sigmax,sigmay,betax, betay),calculateRMSE,returnRmse=TRUE,control = list(maxit=1000))
+names(output$par) <- c("Alphax","Sigmax","Sigmay","Betax","Betay")
+```
+
+#Question 1
+
+The optimised value of the parameters are:    
+```{r echo=FALSE}
+kable(t(output$par))
+```
+  
+```{r echo=FALSE}
+kable(output$value,col.names=c("RMSE in %"))
+```
+
+#Question 2
+
+The mean and variance of the computed X and Y :
+```{r echo=FALSE}
+outputfull <- calculateRMSE(output$par,FALSE)
+means <- c(mean(outputfull$X),mean(outputfull$Y))
+names(means) <- c("X","Y")
+kable(t(means),caption="Mean from model")
+
+variances <- c(var(outputfull$X),var(outputfull$Y))
+names(variances) <- c("X","Y")
+kable(t(variances),caption="Variance from model")
+```
+
+The theoritical mean and variance of X and Y using the formula are:
+```{r echo=FALSE}
+theoriticalmeans <- c(output$par["Alphax"]/output$par["Betax"],0)
+names(theoriticalmeans) <- c("X","Y")
+kable(t(theoriticalmeans),caption="Theoritical mean")
+
+theoriticalvar <- c(output$par["Sigmax"]^2/(2*output$par["Betax"]),output$par["Sigmay"]^2/(2*output$par["Betay"]))
+names(theoriticalvar) <- c("X","Y")
+kable(t(theoriticalvar),caption="Theoritical variance")
+```
+
+As it can be seen, the mean and variance of the model are similar to the theoritical mean and variance.     
+    
+The plot of X and Y are as below:  
+```{r echo=FALSE}
+plot(outputfull$X,type="l",main="Plot of X and Y for optim case",xlab="time",ylab="rate",ylim=c(-0.11,0.11))
+lines(outputfull$Y,col="red")
+legend("bottomleft",c("X","Y"),col=c("black","red"),lty=1)
+```
+
+#Question 3  
+##Maturity 2
+The graph of the actual vs fitted and the deviations are:  
+```{r echo=FALSE}
+par2.diff <- data$cmt2 - outputfull$Par2
+par3.diff <-  data$cmt3 - outputfull$Par3    
+par5.diff <- data$cmt5 - outputfull$Par5     
+par7.diff <- data$cmt7 - outputfull$Par7 
+par(mfrow=c(1,2))
+plot(data$cmt2,type="l",main="fitted and actual.Maturity 2",ylab="yield",xlab="time")
+lines(outputfull$Par2,col="red")
+legend("topright",c("Actual","Fitted"),lty=1,col=c("black","red"))
+plot(par2.diff,type="l",main="fitted-actual:maturity 2",ylab="difference in %",xlab="time")
+```
+
+If we fit the deviation in a AR model,   
+```{r echo=FALSE}
+ar1 <- ar(par2.diff)
+kable(t(ar1$ar),col.names=c(1:length(ar1$ar)))
+```
+       
+##Maturity 3
+The graph of the actual vs fitted and the deviations are:  
+```{r echo=FALSE}
+par(mfrow=c(1,2))
+plot(data$cmt3,type="l",main="fitted vs actual.Maturity 3",ylab="yield",xlab="time")
+lines(outputfull$Par3,col="red")
+legend("topright",c("Actual","Fitted"),lty=1,col=c("black","red"))
+plot(par3.diff,type="l",main="fitted-actual:maturity 3",ylab="difference in %",xlab="time")
+```
+  
+If we fit the deviation in a AR model,   
+```{r echo=FALSE}
+ar1 <- ar(par3.diff)
+kable(t(ar1$ar),col.names=c(1:length(ar1$ar)))
+```
+
+##Maturity 5
+The graph of the actual vs fitted and the deviations are:     
+```{r echo=FALSE}
+par(mfrow=c(1,2))
+plot(data$cmt5,type="l",main="fitted vs actual.Maturity 5",ylab="yield",xlab="time")
+lines(outputfull$Par5,col="red")
+legend("topright",c("Actual","Fitted"),lty=1,col=c("black","red"))
+plot(par5.diff,type="l",main="fitted-actual:maturity 5",ylab="difference in %",xlab="time")
+```
+
+If we fit the deviation in a AR model,   
+```{r echo=FALSE}
+ar1 <- ar(par5.diff)
+kable(t(ar1$ar),col.names=c(1:length(ar1$ar)))
+```
+
+##Maturity 7  
+The graph of the actual vs fitted and the deviations are:    
+```{r echo=FALSE}
+par(mfrow=c(1,2))
+plot(data$cmt7,type="l",main="fitted vs actual.Maturity 7",ylab="yield",xlab="time")
+lines(outputfull$Par7,col="red")
+legend("topright",c("Actual","Fitted"),lty=1,col=c("black","red"))
+plot(par7.diff,type="l",main="fitted-actual:maturity 7",ylab="difference in %",xlab="time")
+```
+  
+If we fit the deviation in a AR model,    
+```{r echo=FALSE}
+ar1 <- ar(par7.diff)
+kable(t(ar1$ar[1:6]),col.names=c(1:6))
+```
+
+This shows a high value for the 1st lag coefficient. The value is lower for low maturity bonds compared to higher maturity's. This might be because the variance of low maturity deviations is higher compared to the higher maturity deviations. This would mean the forecasting power of the higher maturity deviations is better.   
+
+#Question 4  
+##Hedge a 3year par bond for last week
+  
+We can assume that they are zero coupon bonds.  
+
+**Differentiation method**    
+For this method, we will differentiate the portfolio of the 3 year bond, 2 year and 10 year hedging bond based on X and Y (Vasicek Model rates). By setting it to 0, we can calculate weight on the 2 year and 10 year hedging bond.      
+```{r echo=FALSE}
+lastweek <- outputfull[nrow(outputfull),]
+alphax_opt <- output$par[1]
+sigmax_opt <- output$par[2]
+sigmay_opt <- output$par[3]
+betax_opt <- output$par[4]
+betay_opt <- output$par[5]
+
+calculateHedge_Diff <- function(alphax,betax,sigmax,sigmay,betay,mat1,matHed1,matHed2,X,Y,D1.act,H1.act,H2.act){
+  diff <- 0.00001
+  DNew_X <- calculateDT(alphax,betax,sigmax,sigmay,betay,mat1,X+diff,Y)
+  H1New_X <- calculateDT(alphax,betax,sigmax,sigmay,betay,matHed1,X+diff,Y)
+  H2New_X <- calculateDT(alphax,betax,sigmax,sigmay,betay,matHed2,X+diff,Y)
+
+  DNew_Y <- calculateDT(alphax,betax,sigmax,sigmay,betay,mat1,X,Y+diff)
+  H1New_Y <- calculateDT(alphax,betax,sigmax,sigmay,betay,matHed1,X,Y+diff)
+  H2New_Y <- calculateDT(alphax,betax,sigmax,sigmay,betay,matHed2,X,Y+diff)
+
+  Dif_x <- (DNew_X - D1.act)/diff
+  DifH1_x <- (H1New_X - H1.act)/diff
+  DifH2_x <- (H2New_X - H2.act)/diff
+  Dif_y <- (DNew_Y - D1.act)/diff
+  DifH1_y <- (H1New_Y - H1.act)/diff
+  DifH2_y <- (H2New_Y - H2.act)/diff
+
+  N_2 <- (Dif_y * DifH1_x - Dif_x * DifH1_y)/(DifH2_x*DifH1_y - DifH2_y*DifH1_x) 
+  N_1 <- (Dif_y * DifH2_x - Dif_x * DifH2_y)/(DifH1_x*DifH2_y - DifH1_y*DifH2_x)
+  
+  c(N_1,N_2)
+}
+
+calculateHedge_DurnConvty <- function(mat1,matHed1,matHed2,Dt1,DtH1,DtH2,D1.rate,H1.rate,H2.rate){
+  dur1 <- mat1/(1+(D1.rate/200))
+  durh1 <- matHed1/(1+(H1.rate/200))
+  durh2 <- matHed2/(1+(H2.rate/200))
+  
+  conv1 <- (mat1*(mat1+1))/(1+(D1.rate/100))^2
+  convh1 <- (matHed1*(matHed1+1))/(1+(H1.rate/100))^2
+  convh2 <- (matHed2*(matHed2+1))/(1+(H2.rate/100))^2
+  
+  N_1 <- ((conv1*Dt1*durh2) - (dur1*Dt1*convh2))/((DtH1*durh1*convh2)-(DtH1*convh1*durh2))
+  N_2 <- ((conv1*Dt1*durh1) - (dur1*Dt1*convh1))/((DtH2*durh2*convh1)-(DtH2*convh2*durh1))
+  
+  c(N_1,N_2)
+}
+
+
+h1.method1 <- calculateHedge_Diff(alphax_opt,betax_opt,sigmax_opt,sigmay_opt,betay_opt,3,2,10,lastweek$X,lastweek$Y,lastweek$D3,lastweek$D2,lastweek$D10)
+h1.method2 <- calculateHedge_DurnConvty(3,2,10,lastweek$D3,lastweek$D2,lastweek$D10,lastweek$Par3,lastweek$Par2,lastweek$Par10)
+names(h1.method1) <- c("2 Year","10 Year")
+names(h1.method2) <- c("2 Year","10 Year")
+kable(t(h1.method1))
+```
+
+**Duration and Convexity**  
+  
+For this method, we calculate the duration and convexity of the portfolio for 3 year bond, 2 year hedging and 10 year hedging bond. We expect both to be 0. Using that we can get the weight on the 2 year and 10 year hedges.     
+```{r echo=FALSE}
+kable(t(h1.method2))
+```
+
+##Hedge a 5year par bond
+
+**Differentiation method**
+```{r echo=FALSE}
+h2.method1 <- calculateHedge_Diff(alphax_opt,betax_opt,sigmax_opt,sigmay_opt,betay_opt,5,2,10,lastweek$X,lastweek$Y,lastweek$D5,lastweek$D2,lastweek$D10)
+h2.method2 <- calculateHedge_DurnConvty(5,2,10,lastweek$D5,lastweek$D2,lastweek$D10,lastweek$Par5,lastweek$Par2,lastweek$Par10)
+names(h2.method1) <- c("2 Year","10 Year")
+names(h2.method2) <- c("2 Year","10 Year")
+kable(t(h2.method1))
+```
+
+**Duration and Convexity**
+```{r echo=FALSE}
+kable(t(h2.method2))
+```
+
+##Hedge a 7year par bond
+
+**Differentiation method**
+```{r echo=FALSE}
+h3.method1 <- calculateHedge_Diff(alphax_opt,betax_opt,sigmax_opt,sigmay_opt,betay_opt,7,2,10,lastweek$X,lastweek$Y,lastweek$D7,lastweek$D2,lastweek$D10)
+h3.method2 <- calculateHedge_DurnConvty(7,2,10,lastweek$D7,lastweek$D2,lastweek$D10,lastweek$Par7,lastweek$Par2,lastweek$Par10)
+names(h3.method1) <- c("2 Year","10 Year")
+names(h3.method2) <- c("2 Year","10 Year")
+kable(t(h3.method1))
+```
+
+**Duration and Convexity**
+```{r echo=FALSE}
+kable(t(h3.method2))
+```
+
+As we can see, the ratio of weight towards the 10 year hedging bond increases with increase in maturity using the differentiation method, but doesn't follow a trend with the convexity method.  
+  
+**Differentiation method**  
+1) It takes into consideration that there are individual components (X and Y), while coming up with the duration hedging.  
+2) It doesnt take convexity into consideration  
+  
+**Duration and Convexity method**  
+1)This method takes the changes incorporated by X and Y together.  
+2) As it takes convexity, it might be better at handling the curvature of the duration of the bonds.  
+  
+  
+  

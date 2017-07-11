@@ -1,0 +1,109 @@
+---
+author: "Case 2"
+output: pdf_document
+---
+
+**Case 2**
+
+```{r echo=FALSE}
+suppressMessages(require(xts))
+suppressMessages(require(lubridate))
+suppressMessages(require(knitr))
+suppressMessages(require(moments))
+
+rf <- 0.002
+rf.daily <- rf/252
+capital <- 5
+
+setwd("C:/_UCLA/Quarter3/237F_FixedIncome/Assignment/Assignment1")
+pricedata <- read.csv("DataCase2.csv",stringsAsFactors = FALSE,header=TRUE)
+pricedata$Date <- mdy(pricedata$Date)
+```
+
+On Day 1,   
+1) We get an equity of $5, which gets added to cash.
+2) Then we go long the principal strip ($73.184) and short the coupon strip ($73.38).
+3) The difference gets added to cash, as it is realized.
+
+The balance sheet on day 1 is
+```{r echo=FALSE}
+#initially the capital is added to equity and cash
+pricedata$Equity <- rep(NA,nrow(pricedata))
+pricedata$Equity[1] <- capital
+
+#1st day, as principal < coupon strip, long principal strip, short coupon strip
+#long is in asset. short is in liabilities. 
+#The difference is added to cash, as we have made the money already
+pricedata$Assets <- rep(NA,nrow(pricedata))
+pricedata$Liabilities <- rep(NA,nrow(pricedata))
+pricedata$Cash <- rep(NA,nrow(pricedata))
+pricedata$Value <- rep(NA,nrow(pricedata))
+
+pricedata$Assets <- pricedata$Principal.Strip
+pricedata$Liabilities <- pricedata$Coupon.Strip
+pricedata$Value[1] <- pricedata$Liabilities[1] - pricedata$Assets[1]
+pricedata$Cash[1] <- pricedata$Value[1] + capital
+
+#Return column
+pricedata$Return <- rep(NA,nrow(pricedata))
+pricedata$Return[1] <- 0
+
+for(row in 2:nrow(pricedata)){
+  pricedata[row,"Cash"] <- pricedata[row-1,"Cash"] * (1+rf.daily)
+  
+  pricedata[row,"Equity"]  <- pricedata[row-1,"Equity"] +
+                             pricedata[row,"Cash"] - pricedata[row-1,"Cash"] + 
+                             pricedata[row,"Assets"] - pricedata[row-1,"Assets"] -
+                             (pricedata[row,"Liabilities"] - pricedata[row-1,"Liabilities"])
+  
+  
+  
+  pricedata[row,"Return"] <- (pricedata[row,"Equity"] - pricedata[row-1,"Equity"])/pricedata[row-1,"Equity"]
+}
+
+
+kable(pricedata[1,c("Assets","Cash","Liabilities","Equity","Value")])
+```
+
+On Day 2,  
+1) The Cash from previous day grows at interest rate
+2) The profit on this is added to the equity
+3) We then check how the assets (principal strip) and the liabilities (coupon strip) changes over the day.
+4) The difference between these changes is added to the equity.
+
+The balance sheet on day 2 is  
+```{r echo=FALSE}
+kable(pricedata[2,c("Assets","Cash","Liabilities","Equity","Value")])
+```
+
+After calculating the position on all the days,the returns can be calculated by calculating the difference between the equity.    
+  
+The return changes as below:    
+```{r echo=FALSE}
+#plot and analysis
+pricedata <- xts(pricedata[-1],pricedata$Date)
+plot(pricedata$Return,type="l",ylab="Returns",main="Daily returns of long short strategy")
+```
+
+The histogram of the returns are as below  
+```{r echo=FALSE}
+hist(pricedata$Return, xlab="Return", main="Histogram of returns",breaks = 100)
+```
+
+As can be seen there is a tail risk involved in this long short strategy.  
+  
+The Annual return (arithmetic), standard deviation (arithmetic), skewness and kurtosis of this strategy are:     
+
+```{r echo=FALSE}
+annual.ret <- mean(pricedata$Return) * 251
+annual.sd <- sd(pricedata$Return) * sqrt(251)
+annual.SR <- annual.ret/annual.sd
+skew <- skewness(pricedata$Return)
+kurt <- kurtosis(pricedata$Return)-3
+stat <- c(annual.ret,annual.sd,annual.SR,skew,kurt)
+names(stat) <- c("Return","Standard Deviation","Sharpe Ratio","Skewness","Ex Kurtosis")
+kable(stat)
+```
+
+Even though the average return is positive and the strategy has a sharpe ratio of 0.58, this strategy has a bit of tail risk involved, which is evident from the excess kurtosis observed (similar to that observed in the histogram). This shows that even though this arbitrage opportunity can give us assured returns, it will occur only if we hold to maturity. We might be forced to accept a loss if we decide to close the position before the maturity (due to loss constraints).   
+

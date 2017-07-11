@@ -1,0 +1,292 @@
+---
+title: "Fixed Income Assignment 8"
+author: "Nitish Ramkumar, Justin Ge, Carlos Quicazan, Yuying Wang"
+output: pdf_document
+---
+
+```{r}
+library(knitr)
+setwd("C:/_UCLA/Quarter3/237F_FixedIncome/Assignment/Assignment8")
+corr_mat <- read.csv("corrin.csv",header=FALSE)
+corchol <- read.csv("corchol.csv",header=FALSE)
+dt_raw <- read.csv("pfilea.csv",header=FALSE)
+vol_raw <- read.csv("sigma.csv",header=FALSE)
+dt_val <- dt_raw[1:20,]
+vol <- vol_raw[1:19,]
+
+set.seed(1234)
+noOfSims <- 1000
+
+
+####Carlos Code
+corrin = as.matrix(read.csv(file ="corrin.csv",header=F, sep=","))
+corchol = as.matrix(read.csv(file ="corchol.csv",header=F, sep=","))
+pfilea = as.matrix(read.csv(file ="pfilea.csv",header=F, sep=","))
+sigma = as.matrix(read.csv(file ="sigma.csv",header=F, sep=","))
+pfilea = pfilea[1:20]
+sigma = sigma[1:20]
+sigma_i = sigma[-1]
+rho = corrin
+dt = 1/2
+string_model= function(s,r,D){
+  n = length(D)
+  D_matrix = cbind(c(D[1],D[1:(n-1)]),matrix(0,ncol = n,nrow = n))
+  for (i in 1:(n-1)){
+    aux = max(n-i,1)
+    sigma_i = sigma_i[1:aux];
+    r = r[1:aux,1:aux]
+    if (i <= (n-1))
+    {
+      D_matrix[i,i+1] = 1
+      rt = (1/D_matrix[i,i]-1)*2
+      Z = rnorm(aux)
+      L = t(chol(r))
+      dZ = (L %*% Z)*sqrt(dt)
+      D_matrix[(i+1):n,i+1] = D_matrix[(i+1):n,i] + D_matrix[(i+1):n,i]*rt*dt+sigma_i*dt*dZ
+    }
+    if (i == (n-1)) { D_matrix[i+1,i+2] = 1 }
+  }
+  return(D_matrix)
+}
+s = sigma[-1]
+r = rho[1:19,1:19]
+r = rho[-1,-1]
+result = array( dim = c(length(pfilea), (length(pfilea)+1), noOfSims))
+for (i in 1:noOfSims){
+  result[,,i] = string_model(s,r,pfilea)
+}
+
+all_sims <- as.list(rep(0,noOfSims))
+for(i in c(1:noOfSims)){
+  all_sims[[i]] <- result[,,i]
+}
+####
+
+```
+
+#Question 1
+
+1) Get CMS rates using par rate formula
+2) Calculate spot rates at various points for all iterations
+3) Get payoff using spot rates and CMS rates (as strike)
+4) Discount the payoff back to time 0
+
+```{r}
+#use dt provided in excel sheet to calculate cms
+cms <- sapply(c(1:length(dt_val)), function(m){2 * 100 * (1 - dt_val[m])/(sum(dt_val[1:m]))})/100
+
+calculateDiscountedPayoffs <- function(all_sims,cms){
+  #Seperate All dts for moving one step forward 
+  all_dis_fac <- sapply(all_sims,function(x){diag(x)})
+  
+  #L(t-0.5) is the forward rate at t-0.5, 0.5 steps forward (i.e. until t)
+  #a.k.a spot at that moment
+  forward_rates <- 2*((1/all_dis_fac)-1)
+  
+  #Calculate payoff of caplets or swaptions
+  payoff <- 0.5*sapply(c(1:length(all_sims)),function(count){pmax(forward_rates[,count]-cms
+                                                                  ,0.0)})
+  
+  #Calculate present value of caplet
+  dis_cf <- apply(all_dis_fac,2,cumprod)  
+  discount_payoffs <- payoff*dis_cf
+  return(discount_payoffs)
+}
+
+discounted_payoffs <- calculateDiscountedPayoffs(all_sims,cms)
+answer_count <- c(2,3,4,5,7,10)
+answers <- sapply(2*answer_count,function(x){mean(apply(discounted_payoffs[2:x,],2,sum))})
+kable(cbind(answer_count,answers),col.names = c("cap count","price"))
+
+```
+
+#Question 2
+
+1) For every path, check if at exercise step, rate is greater than strike. 
+2) If it is, generate paths from this point (using the string pattern logic, but different initial dt values)  
+3) Calculate payoff at each possible step in these newly generated path. This is the fixed leg - floating leg price. Floating leg price = 1. fixed leg is current value of all coupon payments until expiry
+4) Discount each payoff using a discount factor
+5) Add up cashflows according to what swaption is requested.  
+
+
+```{r}
+calculateSwaptionPrice <- function(all_sims,coupon,exercisestep,expirystep){
+  all_dis_fac <- sapply(all_sims,function(x){diag(x)})
+  forward_rates <- 2*((1/all_dis_fac)-1)
+  
+  exercise_val <- forward_rates[exercisestep,]
+  itm <- exercise_val > coupon
+  payoffs <- rep(0,length(exercise_val))
+  for(count in which(itm)){
+      dts <-  all_sims[[count]][-c(1:(exercisestep-1)),exercisestep]
+      noOfSim2 <- 10
+      all_sims2 <- as.list(rep(0,noOfSim2))
+      for(incount in c(1:noOfSim2)){
+        all_sims2[[incount]] <- string_model(s,r,dts)
+      }
+      
+      #Get present value of fixed rate
+      all_dis_fac_2 <- sapply(all_sims2,function(x){diag(x)})
+      dis_cf_2 <- apply(all_dis_fac_2,2,cumprod)  
+      fixedcf_pv <- coupon * dis_cf_2[-1,]
+      total_coupon <- apply(fixedcf_pv[1:expirystep,],2,sum)
+      coupon_principal <- total_coupon + dis_cf_2[expirystep,] 
+      discount_payoffs <- coupon_principal - 1
+      
+      payoffs[count] <- mean(discount_payoffs)
+  }
+  mean(payoffs)
+}
+
+n <- 2
+expiry <- 2*c(1:4)
+forwards_1 <- sapply(expiry, function(m){2 * 100 * 
+    (dt_val[n] - dt_val[n+m])/(sum(dt_val[(n+1):(n+m)]))})/100
+swaption_price1 <- sapply(c(1:length(forwards_1)),function(x)
+                   {calculateSwaptionPrice(all_sims,forwards_1[x],n,expiry[x])})
+kable(cbind(c(1:4),swaption_price1),col.names = c("SwpCnt","Price"))
+
+n <- 4
+expiry <- 2*c(1:3)
+forwards_2 <- sapply(expiry, function(m){2 * 100 * 
+    (dt_val[n] - dt_val[n+m])/(sum(dt_val[(n+1):(n+m)]))})/100
+swaption_price2 <- sapply(c(1:length(forwards_2)),function(x)
+                  {calculateSwaptionPrice(all_sims,forwards_2[x],n,expiry[x])})
+kable(cbind(c(1:3),swaption_price2),col.names = c("SwpCnt","Price"))
+
+n <- 10
+expiry <- 2*c(1,2,5)
+forwards_3 <- sapply(expiry, function(m){2 * 100 * 
+    (dt_val[n] - dt_val[n+m])/(sum(dt_val[(n+1):(n+m)]))})/100
+swaption_price3 <- sapply(c(1:length(forwards_3)),function(x)
+                  {calculateSwaptionPrice(all_sims,forwards_3[x],n,expiry[x])})
+kable(cbind(c(1:3),swaption_price3),col.names = c("SwpCnt","Price"))
+```
+
+
+#Question 3
+
+1) For every swaption, for every spot maturity (t = 0.5,1,...20), bump the spot rate by 0.0001 on both sides and use that to find DV01.  
+2) Calculation of Dv01 is performed by using the price swaption function from the previous question.  
+```{r}
+
+calculateDV01 <- function(pfilea, coupon, exercisestep, expirystep){
+  answers <- c()
+  for(count in 1:length(pfilea)){
+    pfilea_up <- pfilea
+    pfilea_down <- pfilea
+    rt_up = (1/(pfilea_up[count]^count)-1)*2 + 0.0001
+    rt_down = (1/pfilea_down[count]^count-1)*2 - 0.0001
+    pfilea_up[count] <- (1 + rt_up/2)^(-count)
+    pfilea_down[count] <- (1 + rt_down/2)^(-count)
+    
+    noOfSims <- 10
+    all_sims_up <- as.list(rep(0,noOfSims))
+    for (i in 1:noOfSims){
+      all_sims_up[[i]] <- string_model(s,r,pfilea_up)
+    }
+    price_up <- calculateSwaptionPrice(all_sims_up,coupon,exercisestep,expirystep)
+    
+    all_sims_down <- as.list(rep(0,noOfSims))
+    for (i in 1:noOfSims){
+      all_sims_down[[i]] <- string_model(s,r,pfilea_down)
+    }
+    price_down <- calculateSwaptionPrice(all_sims_down,coupon,exercisestep,expirystep)
+    
+    #answers[count,1] <- count
+    answers[count] <- (price_down - price_up)/2
+  }
+  return(answers)
+}
+
+n <- 2
+expiry <- 2*c(1:4)
+dv01_1 <- sapply(c(1:length(forwards_1)),function(x){calculateDV01(pfilea, forwards_1[x], 
+                                                                   n, expiry[x])})
+
+kable(cbind(c(1:20),dv01_1),col.names=c("bump","Swptn1","Swptn2","Swptn3","Swptn4"))
+
+n <- 4
+expiry <- 2*c(1:3)
+dv01_2 <- sapply(c(1:length(forwards_2)),function(x){calculateDV01(pfilea, forwards_2[x], 
+                                                                   n, expiry[x])})
+
+kable(cbind(c(1:20),dv01_2),col.names=c("bump","Swptn5","Swptn6","Swptn7"))
+
+n <- 10
+expiry <- 2*c(1,2,5)
+dv01_3 <- sapply(c(1:length(forwards_3)),function(x){calculateDV01(pfilea, forwards_3[x], 
+                                                                   n, expiry[x])})
+
+kable(cbind(c(1:20),dv01_3),col.names=c("bump","Swptn8","Swptn9","Swptn10"))
+
+
+matplot(x=c(1:20),y=cbind(dv01_1,dv01_2,dv01_3),type="l",
+        col=c("Red","Blue","Green","Black","Yellow","Orange",
+              "Brown","Pink","Magenta","Gold"),lty=1,
+        main="Plot of DV01 of all the swaptions",xlab="Bump Maturity",ylab="Dv01")
+```
+
+#Question 4
+1) Use the simulated interest rate paths, to find the payoff, which is current rate on every path - previous rate on that path.  Once we do that, we get cashflow at every step in every path.  
+2) Discount these cashflows  
+3) Add all the cashflows necessary for the 5 year cap (which is cashflow 2 to 10).
+
+```{r}
+calculateResetPayoffs <- function(all_sims){
+  #Seperate All dts for moving one step forward 
+  all_dis_fac <- sapply(all_sims,function(x){diag(x)})
+  
+  #L(t-0.5) is the forward rate at t-0.5, 0.5 steps forward (i.e. until t)
+  #a.k.a spot at that moment
+  forward_rates <- 2*((1/all_dis_fac)-1)
+  
+  #Calculate payoff of caplets
+  payoff <- 0.5*sapply(c(1:length(all_sims)),function(count){
+    pmax(forward_rates[2:nrow(forward_rates),count]-
+           forward_rates[(1:nrow(forward_rates)-1),count],0.0)})
+  
+  #Calculate present value of caplet
+  dis_cf <- apply(all_dis_fac[2:nrow(all_dis_fac),],2,cumprod)  
+  discount_payoffs <- payoff*dis_cf
+  return(discount_payoffs)
+}
+
+reset_discount_payoffs <- calculateResetPayoffs(all_sims)
+#only 1-9, ignoring of first already performed
+price <- mean(apply(discounted_payoffs[1:9,],2,sum))
+price
+```
+
+#Question 5
+1) Calculate the cms rate for every maturity for every simulation.  
+2) Use this to subtract the strike and to get payoff.
+3) Discount the values to t=0 and add up the payoffs
+
+```{r}
+calculateCmsPayoffs <- function(all_sims,strike){
+  #Seperate All dts for moving one step forward 
+  all_dis_fac <- sapply(all_sims,function(x){diag(x)})
+  dis_cf <- apply(all_dis_fac,2,cumprod)  
+  
+  #L(t-0.5) is the forward rate at t-0.5, 0.5 steps forward (i.e. until t)
+  #a.k.a spot at that moment
+  #forward_rates <- 2*((1/all_dis_fac)-1)
+  cms_rates <- t(sapply(c(2:nrow(dis_cf)), function(m){2 * 100 * (1 -dis_cf[m,])/
+                                                    (apply(dis_cf[c(1:m),],2,sum))})/100)
+  #Calculate payoff of caplets
+  payoff <- 0.5*sapply(c(1:length(all_sims)),function(count){
+    pmax(cms_rates[,count]-strike,0.0)})
+  
+  #Calculate present value of caplet
+  dis_cf <- apply(all_dis_fac[2:nrow(all_dis_fac),],2,cumprod)  
+  discount_payoffs <- payoff*dis_cf
+  return(discount_payoffs)
+}
+
+cms_payoffs <- calculateCmsPayoffs(all_sims,0.05)
+#only 1-9, ignoring of first already performed
+price <- mean(apply(cms_payoffs[1:9,],2,sum))
+price
+```
+

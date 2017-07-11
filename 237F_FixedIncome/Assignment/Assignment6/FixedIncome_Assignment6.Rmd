@@ -1,0 +1,109 @@
+---
+title: "Fixed Income Assignment 6"
+author: "Nitish Ramkumar, Carlos Quicazan, Justin Ge, Yuying Wang"
+output: pdf_document
+---
+#Question 1  
+  
+For this question, we construct a binomial tree of rates by making sure the Dt for every time period matches the values provided in the question. Dt can be calculated by discounting the cashflows until time 0, using the predicted binomial rates.  
+We also use the fact that the second highest rate in every time period (t) =  
+  
+2nd $highest_t$ = $highest_t$ * $\exp(-2 {\sigma}_t \sqrt(dt))$  
+  
+The final tree of the rates are as below:    
+
+```{r echo=FALSE}
+
+calculateRateError <- function(rguess,timeCount){
+  actualTime <- (timeCount-1)/2
+  volTime <- vol[timeCount-1,1]
+  
+  #Create cash flow table and set final set value as 1
+  #Cashflow table has one index more than time
+  cftable <- matrix(0,nrow = timeCount+1,ncol = timeCount+1) 
+  cftable[,timeCount+1] <- 1
+  
+  #using rguess, we can get all rates for last column
+  currentRate <- sapply(1:timeCount,function(x){rguess*exp(-2*(x-1)*volTime*sqrt(deltat))})
+  currentRate <- c(currentRate,rep(0,(maxt-timeCount)))  
+  predict[,timeCount] <- currentRate
+  
+  for(cfCount in (timeCount:1)){
+    cashflows <- sapply(1:cfCount,function(x){
+      (0.5*cftable[x,cfCount+1] + 0.5*cftable[x+1,cfCount+1])/(1+(predict[x,cfCount]/2))
+    })
+    cftable[,cfCount] <- c(cashflows,rep(0,nrow(cftable)-cfCount))
+  }
+  
+  return(cftable[1,1]-dt[timeCount,1])
+}
+
+
+
+library(knitr)
+
+dt <- read.csv("pfilea.csv",header = FALSE)
+vol <- read.csv("voldat.csv",header = FALSE)
+
+actual <- read.csv("bdttree.csv",header = FALSE) #30*30
+predict <- matrix(0,nrow(dt),nrow(dt))
+deltat <- 0.5
+maxt <- ncol(predict)
+
+#For Dt(0.5) we have analytical solution for r
+predict[1,1] <- ((1/dt[1,1])-1)*2
+
+#Loop through time to get the optimal rguess to make sure the 
+#error between calculated Dt and actual Dt is minimal
+for(timeCount in (2:maxt)){
+  #print(paste0("TimeCount=",timeCount))
+  optm <- uniroot(f=calculateRateError,interval=c(0,1),timeCount=timeCount,extendInt = "downX",maxiter = 10000)
+  rates <- sapply(1:timeCount,function(x){optm$root*exp(-2*(x-1)*vol[timeCount-1,1]*sqrt(deltat))})
+  predict[,timeCount] <- c(rates,rep(0,(maxt-timeCount))) 
+  
+  #print("Prediction")
+  #print(as.numeric(format(round(predict[(1:timeCount),timeCount],3),3)))
+  #print("Actual")
+  #print(as.numeric(format(round(actual[(1:timeCount),timeCount],3),3)))
+  #print("\n")
+}
+kable(predict[,c(1:10)],col.names = c(1:10),caption="Binomial rates from time period 1 to 10")
+kable(predict[,c(11:20)],col.names = c(11:20),caption="Binomial rates from time period 11 to 20")
+kable(predict[,c(21:30)],col.names = c(21:30),caption="Binomial rates from time period 21 to 30")
+```
+
+The plot of the solved r star between calculated and provided data is:  
+```{r echo=FALSE}
+plot(y=predict[1,],x=c(1:30),main="Plot of calculated r star",type="l",ylab="rates",xlab="time")
+points(y=predict[1,],x=c(1:30),cex=2)
+lines(y=actual[1,],x=c(1:30),col="red")
+points(y=predict[1,],x=c(1:30),pch=2)
+legend("bottomright",c("calculated","provided"),pch=c(1,2))
+```
+This shows that the calculated and provided data are exactly the same.  
+  
+The correlation between the predicted and actual matrix is:
+```{r echo=FALSE}
+cor(as.vector(predict),as.vector(as.matrix(actual)))
+```  
+  
+#Question 2
+
+The expected rates are the weighted average of all the rates at each time step. The forward rates include the 0.5F1.5, 1F2 etc. Keeping this, We can plot the 2 graphs.  
+
+```{r echo=FALSE}
+GetProb <- function(n){
+  term1 <- 0.5^n
+  term2 <- sapply(c(0:n),function(x){factorial(n)/(factorial(n-x)*factorial(x))})
+  return(term1*term2)
+}
+
+expected <- sapply(1:ncol(predict),function(x){GetProb(x-1)%*%predict[(1:x),x]})
+forward <- sapply((3:nrow(dt)),function(x){(sqrt(dt[x-2,1]/dt[x,1])-1)*2})
+plot(y=expected[c(3:30)],x=c(3:30),main="expected,forward rates with time horizon",xlab="time",ylab="Expected Rates",type="l")
+lines(y=forward,x=c(3:30),col="red")
+legend("bottomright",c("expected rates","forward rates"),col=c("black","red"),lty=1)
+```
+
+  
+The difference might be because of the fact that the binomial method doesn't give the most accurate results due to the assumptions involved in the process.
