@@ -1,0 +1,218 @@
+---
+title: "Quant Asset Management PS1"
+subtitle: "Nitish Ramkumar - 704873047"
+author: "Collaborators:Ian Laker, Forrest Henslee, Stephan Du Toit, Yvonne Yi Tong"
+output: pdf_document
+---
+
+#Question 1
+
+## Sample Data
+Data for this question was retrieved from CRSP (MSF,DSENAMES,DSEDELIST). The range is from February 1926 to December 2015.
+
+Note: Steps on generation of test data is explained after the answers for the questions.
+
+##Clean up
+For calculating the value weighted returns, we need to initially clean up the data provided to the function. This involves
+i) Check if SHRCD is 10 or 11 and EXCHCD is either 1,2 or 3.
+ii) Check if returns are not -99,-88,-77,-66,-55,-44 (invalid values)
+
+
+##Convert to Monthly (if data is in other format)
+The code also doesnt make any assumption of monthly returns (as the input format is date). So the returns are converted to monthly returns by summing the log returns.
+```{r eval=FALSE}
+  ##Annualize returns and handle delist
+  #convert to log returns
+  CRSP_Stocks[,c('month','year','RET','DLRET','RETX','DLRETX'):=
+                               .(month(DATE),year(DATE),log(1+RET),log(1+DLRET),
+                                 log(1+RETX),log(1+DLRETX))] 
+  
+  #annualize (if data is daily) by adding within groups of year and month
+  ret <- CRSP_Stocks[,.(ret=sum(RET,na.rm = TRUE),delistret=sum(DLRET,na.rm = TRUE)),
+                     by=.(PERMNO,year,month)]
+```
+
+##Handle Delisting
+We add the the log returns and log delist returns across every month and year record. The NA entries of delist returns are converted to 0 in the previous step.
+
+This code doesn't handle the case of change in exchange code during a delist. No specific information regarding this is provided in the Fama French website.
+
+##Marketcap calculation
+1) Market cap should be calculated using the absolute value of price and shares outstanding. This is because if a valid closing price is not available, the price is stored as negative of average of bid/ask spread.    
+2) Code ignores NA while calculating metrics, as this means that a valid price or shares outstanding was not available at the beginning of the month.   
+
+##Metrics
+The output metrics are calculated by using 1 month lag marketcap value for each PERMNO. 
+
+The results for the sample data are as below.
+
+```{r echo=FALSE}
+load("Hwk1.RData")
+source("PS1_704873047.R")
+monthlydata <- PS1_Q1(stockInfo)
+monthlydata[-1]
+```
+
+#Question 2
+
+##Sample Data
+1) The output from Question 1 is used, but truncated to July 1926 - December 2015.
+2) Fama French data, which contains the market portfolio, SMB, HML and risk free returns. 
+
+##Statistics calculation
+1) Mean and variance of the returns are calculated and then annualized on a monlthy basis.
+2) Kurtosis and skewness is calculated using moments library functions.
+3) Risk free rate is removed from the calculated value weighted return before comparing with the Fama French Market-Rf field.
+
+The results for the sample data are as below.
+```{r echo=FALSE}
+statsresults <- PS1_Q2(monthlydata[Year > 1926 | (Year == 1926 & Month>=7)],datafactors)
+statsresults
+```
+
+#Question 3
+
+##Sample data
+Same sample data as Question 2.
+
+##Calculation
+1) The correlation and max difference using the calculated (average weight - risk free) returns and actual market portfolio returns.
+
+```{r echo=FALSE}
+corresults <- PS1_Q3(monthlydata,datafactors)
+corresults
+```
+
+The absolute maximum difference is almost 0. The small difference might be because the sample data set doesn't specifically manage the change in exchanges after a delist happens.   
+
+#Test Data
+The value weighted returns are calculated based on data from WRDS. The code for pulling data from WRDS is as below. Some important pointers are:  
+  
+1) Returns, price and stocks outstanding are found in **CRSPQ.MSF**
+2) EXCHCD and SHRCD are found in **CRSPQ.DSENAMES**
+3) DLRET and DLRETX are found in **CRSPQ.DSEDELIST**
+4) Remove Delist entries which have DLSTCD = 100, as it means the stock is active.  
+
+```{r eval=FALSE}
+readfromFile = TRUE
+if(!readfromFile){
+  #WRDS CONNECTION##############################################
+  library(rJava)
+  options(java.parameters = '-Xmx4g')
+  library(RJDBC)
+  
+  sasPath <- "C:\\Users\\nitis\\OneDrive\\Documents\\WRDS_Drivers"
+  sasCore <- paste0(sasPath, "\\sas.core.jar")
+  sasDriver <- paste0(sasPath, "\\sas.intrnet.javatools.jar")
+  .jinit()
+  .jaddClassPath(c(sasCore, sasDriver))
+  drv <- JDBC("com.sas.net.sharenet.ShareNetDriver", sasDriver, identifier.quote="")
+  wrds <- dbConnect(drv, "jdbc:sharenet://wrds-cloud.wharton.upenn.edu:8551/", user, pass)
+  
+  # Function to get data #
+  getData <- function(sql, n = -1){
+    #setup connection
+    res <- dbSendQuery(wrds, sql)
+    dbHasCompleted(res)
+    
+    #perform fetch
+    returnData <- fetch(res, n)
+    
+    #clear memory
+    dbClearResult(res)
+    return(returnData)
+  }
+  ###########################################################
+  
+  setwd("C:/_UCLA/Quarter3/237H_QuantAsset/ProblemSets/PS1")
+  #LIBRARIES
+  require(data.table)
+  require(dplyr)
+  require(moments)
+  require(lubridate)
+  
+  #GET DATA - Q1
+  sql1 <- "SELECT DATE,PERMNO,RET,RETX, PRC, SHROUT FROM CRSPQ.MSF WHERE DATE between
+  '01feb1926'd and '31dec2015'd"
+  sql2 <- "SELECT PERMNO, NAMEENDT, NAMEDT, SHRCD, EXCHCD  FROM CRSPQ.DSENAMES 
+  WHERE NAMEENDT >= mdy(01,02,1926) AND NAMEDT <= mdy(12,31,2015)"
+  sql3 <- "SELECT PERMNO,DLSTDT,DLSTCD,NWPERM,DLRET,DLRETX FROM CRSPQ.DSEDELIST 
+  WHERE DLSTDT between '01feb1926'd and '31dec2015'd"
+  stocks <- getData(sql1)
+  stocknames <- getData(sql2)
+  delist <- getData(sql3)
+  
+  #FORMAT DATA
+  stocks$DATE <- as.Date(stocks$DATE)
+  stocknames$NAMEDT <- as.Date(stocknames$NAMEDT)
+  stocknames$NAMEENDT <- as.Date(stocknames$NAMEENDT)
+  delist$DLSTDT <- as.Date(delist$DLSTDT)
+  
+  #Stock returns info in data table
+  stocks <- data.table(stocks)
+  stocks[,c("month","year"):=.(month(DATE),year(DATE))]
+  setkey(stocks,PERMNO)
+  setorder(stocks,PERMNO,DATE)
+  
+  #Put EXCHCD and SHRCD information into data table
+  stocknames <- data.table(stocknames)
+  setorder(stocknames,PERMNO)
+  stocknames[,c("nameMnth","nameYr","namEndMnth","namEndYr"):=.(month(NAMEDT),
+                                                  year(NAMEDT),month(NAMEENDT),year(NAMEENDT))]
+  setkey(stocknames,PERMNO)
+  
+  tret <- stocknames[stocks,nomatch=0,allow.cartesian=TRUE]
+  tret <- tret[((nameYr < year) | (nameYr == year & nameMnth <= month)) 
+               & ((namEndYr > year) | (namEndYr == year & namEndMnth >= month))]
+  setorder(tret,PERMNO,DATE)
+  tret <- tret[,c("NAMEDT","NAMEENDT","nameMnth","nameYr","namEndMnth","namEndYr"):=NULL]
+
+  #Delist info in data table
+  delist <- data.table(delist)
+  delist <- delist[,.(PERMNO,DLSTDT,DLSTCD,NWPERM,DLRET,DLRETX)]
+  delist[,c("month","year"):=.(month(DLSTDT),year(DLSTDT))]
+  delist[,c("DLSTDT","DLSTCD","NWPERM"):=NULL]
+  setkey(delist,PERMNO,month,year)
+  
+  #merge stock and delist info
+  setkey(tret,PERMNO,year,month)
+  stockInfo <- merge(delist,tret,by = c("PERMNO","year","month"),all = TRUE)
+  setorder(stockInfo,PERMNO,DATE)
+  stockInfo <- stockInfo[,.(PERMNO,DATE,SHRCD,EXCHCD,RET,RETX,DLRET,DLRETX,PRC,SHROUT)]
+  
+  stockInfo$PERMNO <- as.integer(stockInfo$PERMNO)
+  stockInfo$SHRCD <- as.integer(stockInfo$SHRCD)
+  stockInfo$EXCHCD <- as.integer(stockInfo$EXCHCD)
+  stockInfo$SHROUT <- as.integer(stockInfo$SHROUT)
+  stockInfo$RET <- as.factor(stockInfo$RET)
+  stockInfo$RETX <- as.factor(stockInfo$RETX)
+  stockInfo$DLRET <- as.factor(stockInfo$DLRET)
+  stockInfo$DLRETX <- as.factor(stockInfo$DLRETX)
+```
+  
+  
+For the Fama French factor information, we get a .csv fom the Fama French website. The factor returns need to be converted to decimal by dividing by 100. 
+```{r eval=FALSE}
+  #GETDATA - Q2
+  datafactors <- read.csv("F-F_Research_Data_Factors.csv",header=TRUE,sep = ",",
+                          stringsAsFactors = FALSE,skip = 3,nrows = 1088)
+  datafactors$X <- ymd(paste0(datafactors$X,"01"))
+  datafactors <- datafactors[datafactors$X >= '1926-07-01' & 
+                               datafactors$X <= '2015-12-31',]
+  datafactors <- datafactors%>%mutate(Year=year(datafactors$X),
+                                      Month=month(datafactors$X))%>%
+                               mutate(Market_Minus_Rf = Mkt.RF,Rf=RF)%>%
+                               select(Year,Month,Market_Minus_Rf,SMB,HML,Rf)%>%
+                               group_by(Year,Month)%>%
+                               summarize(Market_Minus_Rf = prod(1+Market_Minus_Rf/100)-1,
+                                         SMB = prod(1+SMB/100)-1,
+                                         HML = prod(1+HML/100)-1,
+                                         Rf = prod(1+Rf/100)-1)
+  
+  datafactors <- data.table(datafactors)
+  
+  save(stockInfo,datafactors,file="Hwk1.RData")
+}
+
+```
+

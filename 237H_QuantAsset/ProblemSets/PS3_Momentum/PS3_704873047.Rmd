@@ -1,0 +1,196 @@
+---
+title: "Quantitative Asset Management Problem Set 3"
+subtitle: "Nitish Ramkumar"
+author: "Colloaborators : Yvonne Yi Tong"
+output: pdf_document
+---
+
+
+```{r echo=FALSE}
+#Get Data
+suppressMessages(library(data.table))
+suppressMessages(library(knitr))
+setwd("C:/_UCLA/Quarter3/237H_QuantAsset/ProblemSets/PS3")
+
+rawdata <- read.csv("CRSP_Stocks.csv")
+data <- data.table(rawdata)
+data <- data[,.(PERMNO,date,SHRCD,EXCHCD,RET,DLRET,PRC,SHROUT)]
+data <- data[,date := as.Date(as.character(date),"%Y%m%d")]
+CRSP_Stocks <- data
+source("PS3_704873047.R")
+
+```
+
+#Question 1  
+**Data Cleanup**  
+Before getting into the momentum portfolio building, we need to clean up the CRSP data. This data is retrieved out of the CRSP without any constraints. These steps have been followed:  
+
+1) Filter out stocks with share code of 10,11 (ordinary common shares with no further definitions)  
+2) Filter out stocks with exchange code of 1,2,3 (only NYSE, AMEX and NASDAQ)  
+3) Set all returns as NA when returns are equal to -99, -88, -77, -66, -55, -44, B, C.  
+4) Set all delisting returns as NA when it is equal to -99, -88, -77, -66, -55, -44, A, P, S, T.  
+  
+**Calculations**  
+
+1) Before we start calculating, we need to fill in missing months, as it is critical while trying to find the past 12 months returns. By doing this every stock will have an entry for every possible month in the time period we are interested in (in this case, all the entire CRSP period, as we haven't done any trimming).  
+  
+2) Delist returns need to incorporated into the returns if a company has been delisted. If a delist return is present, it needs to be set as return (if actual return is missing), or combined with the return for that month.  
+  
+3) The cumulative return needs to be calculated only if the following conditions are satisfied
+ a) there is a valid price at t-13
+ b) there is a valid market cap at t-1
+ c) there is a valid return at t-2
+ d) there are atleast 8 valid returns in the 11 months period from t-2 to t-12.
+
+4) For the entries which satisfy the above condition, the sum of the log returns are calculated over the t-2 to t-12 period. This is maintained as the ranking return.
+
+**Output**  
+1) The required output is trimmed to be from 1927 to 2015.  
+2) The rows which have ranking return as NA are not removed in this question. (removed in the first step while of next question while calculating the ranks, as we can't rank NA returns.)    
+
+
+```{r echo=FALSE}
+CRSP_Stocks_Momentum <- PS3_Q1(CRSP_Stocks)
+kable(tail(CRSP_Stocks_Momentum[PERMNO==10001],8))
+```
+
+#Question 2  
+**Clean up**  
+Before we calculate the rankings for both types, the rows which have ranking returns as NA needs to be removed. Without doing this, we cannot rank the returns accurately.  
+  
+**Calculations**  
+The main calculation in this question is the ranking using the 2 methods.  
+
+_Method 1_    
+Based on the Daniel methodology, the sorting into deciles is done using the ranking returns of all the stocks. So the decile breakpoints are calculated using all the stocks available for every month-year combination. Based on which decile the stock's ranking return is in, a rank is given. 1 means the lowest return decile and 10 means the highest return decile.  
+  
+_Method 2_  
+Based on the Kenneth French methodology, the sorting into deciles is done only using ranking returns of NYSE stocks ,i.e, the decile breakpoints are calculated using only the NYSE stocks available fo every month-year combination. All the stocks are now ranked using these breakpoints.  
+  
+Note that in this case, the number of stocks in each decile might not be the same, as the breakpoints were calculated based on NYSE stocks only.  
+    
+**Output**  
+The output is between 1927 and 2015. Sample output is as follows:
+  
+
+```{r echo=FALSE}
+CRSP_Stocks_Momentum_decile <- PS3_Q2(CRSP_Stocks_Momentum)
+kable(head(CRSP_Stocks_Momentum_decile[Year==2015 & Month==12],6))
+```
+
+#Question 3
+**Data** 
+Apart from the output from the 2nd Question, The fama french data factors needs to be retrieved form the website, in order to get the risk free rate.  
+  
+**Clean up**  
+The fama french data needs to be trimmed to be between 1927 and 2015, which is the same as the output from Question 2.  
+  
+    
+**Calculation**  
+For every year, month, decile combination, calculate the value weighted return of all the stocks. For this, the lagged market cap and return information needs to be used. This process needs to be done seperately for both the ranking methodology.  
+  
+After that the we can merge the result with the fama french factors, in order to get the risk free rate for each month-year combination.  
+  
+**Output**  
+As we have already trimmed the inputs to 1927 to 2015, the result of the calculation is the output. A Sample output is as follows:
+
+```{r echo=FALSE}
+#3
+FF_mkt <- read.csv("F-F_Research_Data_Factors.csv",skip=3,header=TRUE,nrows = 1088)
+FF_mkt$Year <- as.integer(FF_mkt$X/100)
+FF_mkt$Month <- as.integer(FF_mkt$X %% 100)
+FF_mkt$RF <- FF_mkt$RF/100
+FF_mkt <- as.data.table(FF_mkt)
+setnames(FF_mkt,"Mkt.RF","Market_minus_Rf")
+setnames(FF_mkt,"RF","Rf")
+FF_mkt <- FF_mkt[,c("Year","Month","Market_minus_Rf","SMB","HML","Rf")]
+
+CRSP_Stocks_Momentum_returns <- PS3_Q3(CRSP_Stocks_Momentum_decile,FF_mkt)
+kable(head(CRSP_Stocks_Momentum_returns[Year == 2015 & Month == 12],5))
+```
+
+#Question 4
+**Data**  
+The question asks us to follow the methodology and format of the paper. The table in the paper trims the return data from January 1927 to March 2013. This has been performed on the data. All the calculations will be done only for the Daniel-Moskowitz value weighted returns.       
+  
+**Calculations**  
+1) Mean is calculated for the returns of every year, month and decile combination and the result is annualized arithmetically (multiply by 12)  
+2) Standard deviation is calculated for the returns of every year, month and decile combination and the result is annualized arithmetrically (multiply by $\sqrt(12)$)  
+3) Sharpe Ratio is also shown in annualized terms.  
+4) Skewness for the deciles is calculated for the log returns (not excess) of every year, month and decile combination. For the WML, it is the realized skewness of log(1+$r_{WML}$+$r_f$)
+
+```{r echo=FALSE}
+#4
+Q4_Output <- PS3_Q4(CRSP_Stocks_Momentum_returns)
+kable(Q4_Output[,c(1:5)])
+kable(Q4_Output[,c(6:11)])
+```
+
+#Question 5  
+**Data**  
+  
+To perform the correlation between our KRF and DM returns and their original values, we get the KRF and DM data from the corresponding websites. The data is available until 2017 in KRF website and until 2016 in the DM website. For DM, the m _ m _ pt _ tot .txt was used as that indicates the file with the total returns for all firms on a monthly basis.  
+
+The data needs to be formatted to fit the input constraints for this problem (group all deciles together and place them column wise). The data in all data sets needs to be trimmed from 1927 to 2015 as mentioned in the question.     
+  
+**Calculations**  
+Calculate correlation between the calculated DM/KRF returns and corresponding DM/KRF returns from the website. This is done for every decile portfolio and the WML portfolio.  
+  
+It is not clearly mentioned whether we need to take correlation with excess returns or normal returns for both the KRF and DM data. I have assumed that normal returns are used for correlation calculation.  
+  
+**Output**  
+The correlations are as follows:  
+```{r echo=FALSE}
+#5
+KRF_mom <- read.csv("10_Portfolios_Prior_12_2.csv",skip=10,header=TRUE,nrow=1083)
+KRF_mom$Year <- as.integer(KRF_mom$X/100)
+KRF_mom$Month <- as.integer(KRF_mom$X %% 100)
+
+#Get KRF returns in expected format
+KRF_returns <- data.table()
+for(count in 1:10){
+  data <- cbind(KRF_mom[,"Year"], KRF_mom[,"Month"], rep(count,nrow(KRF_mom)), KRF_mom[,count+1]/100)
+  KRF_returns <- rbind(KRF_returns,data)
+}
+colnames(KRF_returns) <- c("Year","Month","decile","KRF_Ret")
+KRF_returns$Year <- as.integer(KRF_returns$Year)
+KRF_returns$Month <- as.integer(KRF_returns$Month)
+KRF_returns$decile <- as.integer(KRF_returns$decile)
+setorder(KRF_returns,Year,Month,decile)
+KRF_returns <- data.table(KRF_returns)
+
+#Get DM Return in expected format
+DM_mom <- read.table("m_m_pt_tot.txt")  
+DM_mom$Year <- as.integer(DM_mom$V1/10000)
+DM_mom$Month <- as.integer(as.integer(DM_mom$V1%%10000)/100)
+DM_returns <- DM_mom[,c("Year","Month","V2","V3")]
+DM_returns <- data.table(DM_returns)
+setnames(DM_returns,"V2","decile")
+setnames(DM_returns,"V3","DM_Ret")
+setorder(DM_returns,Year,Month,decile)
+
+Q5_Output <- PS3_Q5(CRSP_Stocks_Momentum_returns,DM_returns,KRF_returns)
+kable(Q5_Output[,c(1:5)])
+kable(Q5_Output[,c(6:11)])
+```
+
+#Question 6
+Based on the KRF data on the website (contains data until current month), we can see that the momentum portfolio hasn't been doing well recently. This might be because of the sluggish economy, which keeps the returns on the momentum strategy low.  
+  
+```{r echo=FALSE}
+#6
+q6 <- KRF_returns[Year %in% c(2017,2016,2015)]
+q6_mom <- q6[,.(Decile_1 = .SD[decile==1,KRF_Ret],Decile_10 = .SD[decile==10,KRF_Ret]),.(Year,Month)]
+q6_mom <- q6_mom[,WML:=Decile_10 - Decile_1]
+dates <- seq(as.Date("2015/01/01"),as.Date("2017/03/01"),by = "month") 
+plot(y = q6_mom$Decile_1, x = dates, type="l", xlab="Date", ylab="Returns", main="Plot of momentum performance in last 2 years")
+lines(y = q6_mom$Decile_10, x = dates, col="blue", type="l")
+lines(y = q6_mom$WML, x=dates, col="red", type="l")
+legend("bottomright",c("Dec 1","Dec 10","WML"),col=c("black","blue","red"),lty=1)
+```
+
+#Question 7  
+
+In normal environments, the momentum factor is both statistically and economically strong. But during panic states, immediately after multi-year market drawdowns, momentum as a standalone strategy, can be very risky and can lead to huge losses. The volatility of momentum strategy is quite high compared to the market. Another challenge which makes it tough to invest in momentum is the time varying beta, especially for the loser portfolio.  
+  
+At the moment, all the macro-economic factors are positive in the market. This means that there is a possibility of a upward trending market in the near future. So, I will invest in the momentum strategy.  

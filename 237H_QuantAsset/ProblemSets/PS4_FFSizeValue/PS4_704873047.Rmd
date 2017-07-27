@@ -1,0 +1,707 @@
+---
+title: "Quant Asset Management Problem Set 4"
+author: "Nitish Ramkumar"
+output: pdf_document
+---
+
+
+#Question 1 - Construction of Characteristic and factor portfolios
+
+##Introduction 
+
+The aim of this question is to prepare the necessary data for subsequent analysis for the size, book-to-market, HML and SMB portfolios. This involves cleaning CRSP and compustat data, merging them, using them to rank the various companies based on size (market equity) and Book-to-Market deciles. This will also involve ranking size and book-to-market in such a way that a HML and SMB portfolio can be formed.  
+  
+##Data  
+This question will involve 4 major data sources  
+  
+1. **CRSP**, from where we can get 
+ i. Stock and company identification (PERMNO, PERMCO)
+ ii. Monthly returns (RET)
+ iii. Exchange code (EXCHCD), share code (SHRCD) and industry code (NAICS or SICCD, explained later)
+ iv. Price (PRC) and shares outstanding (SHROUT)
+This can be retrieved out of the CRSP Monthly stock web portal  
+ 
+2. **COMPUSTAT**, from where we can get the fundamental information about various companies. For our analysis, we will be retrieving 
+ i. the unique identifier (GVKEY)
+ ii. fiscal year (fyear)
+ iii. the industry format which will help us identify industrial or financial firms(INDFMT)
+ iv. data format, which helps us identify (DATAFMT)
+ v. **Shareholder's equity**(SHE) - Total (SEQ), Common/ordinary equity - total (CEQ), preferred / preference stock (capital) - total (PSTK), Assets total (at), Liabilities total (lt), minority balance (MIB)  
+ vi. **Deferred tax and investment tax credit** (DT) - Deferred Taxes and Investment Tax Credit (TXDITC), Investment Tax Credit (Balance Sheet)" (ITCB), Deferred Taxes (Balance Sheet)" (TXDB)
+ vii. **Book value of preferred stock**(PS) - Preferred Stock Redemption Value (PSTKRV), Preferred Stock Liquidating Value (PSTKL), Preferred Preference Stock (Capital) - Total (PSTK)
+ 
+3. **COMPUSTAT PENSION DATA** - We can get the unique identifier (GVKEY) and Post Retirement Benefit Asset (PRBA) from this dataset.
+ 
+4. **LINK TABLE** - This is retrieved out the CRSP data set CRSPA.CCMXPF_LINKTABLE. This can be retrieved directly out of R API to connect to WRDS. Information retrieved out of this table are GVKEY (Compustat identifier), lpermno (the corresponding link to PERMNO in CRSP), lpermco (the link to PERMCO in CRSP), linkdt (the start date for this particular link), linkenddt (the end date for this particular link), linktype and linkprim(types)  
+
+The data has not been constrained to a specific data range as part of input.    
+
+##Methodology  
+  
+###Clean up CRSP data
+The basic clean up of the CRSP data involves the following steps:  
+
+1. Filter out stocks with share code of 10,11 (ordinary common shares with no further definitions)      
+2. Filter out stocks with exchange code of 1,2,3 (only NYSE, AMEX and NASDAQ)      
+3. Set all returns as NA when returns are equal to -99, -88, -77, -66, -55, -44, B, C  
+4. Set all delisting returns as NA when it is equal to -99, -88, -77, -66, -55, -44, A, P, S, T.    
+5. **Market Cap** - Calculate Marketcap for each issue (PERMNO), as the product of the absolute value of price and absolute value of shares outstanding. This will further be accumulated within every company in later steps.    
+6. **Delist returns**. No specific information was provided. I assumed that this was needed for this project and incorporated it into the returns if a company has been delisted. If a delist return is present, it needs to be set as return (if actual return is missing), or the returns should be geometrically combined _((1+Return)(1+Delist return) - 1)_     
+  
+_Non-Financials_  
+As mentioned in the paper, we are expected to ignore financials due to how leverage is treated differently as compared to non-financial firms.  
+  
+This can be done using 2 different values in the CRSP data set - North American Industry Classification Code System (NAICS) or the Standard Industrial Code (SICCD). To avoid financial firms, we need to make sure that NAICS doesn't begin with 52, or SICCD doesn't start with 6. Both were tested, and the NAICS check gave better results.  
+  
+_Filling Missing Data_  
+ We also need to fill in missing months, as it is critical while trying to make sure correct months are chosen while calculating the characteristic and factor portfolios. By calculating the number of months between 2 entries, we can gauge and fill up missing entries for every PERMCO, PERMNO combination.  
+  
+Once we do this, for example, we will know that a shift of 6 months will surely take us from January to June.      
+  
+###Clean up and merge Compustat and Pension Annual data
+_Based on symbols introduced in data section_
+
+The basic clean up of the 2 datasets involves the following steps:  
+
+1. For compustat data, we need to only entries which have DATAFMT = STD (standard) and INDFMT = INDL (This will only include non-financial firms). For Pension Annual data, we need to restrict it only for non-financial firms as wel (INDFMT = INDL)    
+2. Merge the computstat and Pension Annual data using the gvkey field which is common between both tables      
+  
+_Calculate Book Equity (BE) Value_    
+Book equity (BE) can be calculated as: _BE = Shareholder's Equity (SHE) - Book Value of Preferred Stock(PS) + Deferred tax and investment tax credit(DT) - PRBA_  
+
+, where _SHE_ = SEQ (when SEQ is valid), else CEQ + PSTK (when the sum is valid), else AT-LT-MIB (when MIB is valid) , else AT - LT    
+_PS_ = PSTKRV (when PSTKRV is valid), else PSTKL (when PSTKL is valid) , else PSTK    
+_DT_ = TXDITC (where TXDITC is valid), else ITCB + TXDB (ignoring the term which is NA)    
+  
+###Merge Process  
+
+ 1. Initially the merge is done between the the compustat linked (compustat data and pension annual) data set and the link table. This will be a merge based on the GVKEY in the compustat data and the GVKEY in the link data. We will be performing a link on a company level with compustat. 
+
+ 2. **Link types**  - Before we merge, we can filter certain information out in the link data based on link type.  
+ 
+  a. Link types (linktype) LC and LU are the most accurate link types.    
+  b. The other link types are either indicate duplicate(LD) or some sort of information doesn't match our criteria (LX-in exchange not in CRSP world, LS - different gvkey for same PERMCO, LN - compustat doesn't contain valid information, LO - no entries in link table, NR/NU - link not available).    
+  c. We also care only about primary links, so we can restrict the linkprim type in the link table to P(primary link) and C (primary link assigned by CRSP to manage issues due to overlap). The USEDFLAG field is not necessary because after all these conditions, all the values of USEDFLAG is already equal to 1.    
+  
+ 3. After we perform a link based on gvkey between the 2 data sets, we also need to make sure that the date in compustat is between the link start and link end date. This will make sure that for a given time, there will be only one link between PERMCO and GVKEY      
+  
+###Size Deciles  
+ 1. As per the 1992 paper, the size deciles are calculated based on the rankings measured annually for returns from July of year t to June of year t+1, which is based on the market cap for that company in June of year t. This means the rebalancing of the ranking is done annually using end of June information.  
+ 2. All marketcap of a company (for each PERMCO) are accumulated together to get one value for each company. It is this marketcap which is used for the ranking process.  
+ 3. All companies are allocated a rank between 1 to 10 from july of year t to july of year t+1, based on breakpoints calculated using the ME in June of year t of only NYSE stocks.  
+ 4. Once we get the rankings, we can calculate value-weighted returns for all the companies within each decile, for each year month combination. This will use the lagged market capitalization for that stock. (Note that is is not clearly mentioned whether it is value weighted or equal weighted returns in the paper. Value weighted was chosen due to better results).  
+ 5. A long short portfolio is created by going long the 1st decile and short the 10th decile for every year month combination.    
+ 6. The data has to be restricted between 1973 and 2015.
+
+**Checks**  
+
+ 1. While calculating breakpoints at time t, a valid CRSP price (in turn a valid marketcap) should be available in June of year t for it to be considered for ranking. (December market cap check has been ignored for size and has been done only for book-to-market calculations)    
+
+
+```{r echo=FALSE}
+
+library(knitr)
+suppressMessages(library(data.table))
+suppressMessages(library(zoo))
+library(moments)
+setwd("C:/_UCLA/Quarter3/237H_QuantAsset/ProblemSets/PS4")
+
+###LINK TO WRDS
+suppressMessages(library(rJava))
+options(java.parameters = '-Xmx4g')
+suppressMessages(library(RJDBC))
+
+sasPath <- "C:\\Users\\nitis\\OneDrive\\Documents\\WRDS_Drivers"
+sasCore <- paste0(sasPath, "\\sas.core.jar")
+sasDriver <- paste0(sasPath, "\\sas.intrnet.javatools.jar")
+user <- "nramkuma"
+pass <- "{SAS002}AF665B391E73D5D3492960545A7E616B"
+.jinit()
+.jaddClassPath(c(sasCore, sasDriver))
+drv <- JDBC("com.sas.net.sharenet.ShareNetDriver", sasDriver, identifier.quote="")
+wrds <- dbConnect(drv, "jdbc:sharenet://wrds-cloud.wharton.upenn.edu:8551/", user, pass)
+
+# Function to get data #
+getData <- function(sql, n = -1){
+  #setup connection
+  res <- dbSendQuery(wrds, sql)
+  dbHasCompleted(res)
+  
+  #perform fetch
+  returnData <- fetch(res, n)
+  
+  #clear memory
+  dbClearResult(res)
+  return(returnData)
+}
+
+#Function to clean CRSP and add missing rows
+cleanCRSPStocksAndAddMissingRows <- function(CRSP_Stocks){
+  
+  ###CRSP 
+  #Filter Share code of 10,11
+  #Filter Exchange Code of 1,2,3
+  CRSP_Stocks <- CRSP_Stocks[SHRCD %in% c(10,11) & EXCHCD %in% c(1,2,3)]
+  
+  #If return is -99.0, -88.0,-77.0, -66.0, B, C for RET
+  CRSP_Stocks[RET %in% c("B","C","-99","-88","-77","-66",""," "), RET:=NA]
+  #If delist return is -99.0, -88.0,-77.0, -66.0, P, S, T
+  CRSP_Stocks[DLRET %in% c("A","P","S","T","-99","-88","-77","-66",""," "),DLRET := NA]
+  
+  #CRSP NAICS for financials
+  #CRSP_Stocks <- CRSP_Stocks[!grepl("^52",NAICS)]
+  
+  #MarketCap 
+  setorder(CRSP_Stocks,date)
+  CRSP_Stocks[,MktCap := abs(PRC) * abs(SHROUT)/1000]
+  
+  #format fields and compute new fields for month, year and num months until today
+  CRSP_Stocks[,date := as.Date(as.character(date),"%Y%m%d")]
+  CRSP_Stocks[,RET:=as.numeric(as.character(RET))]
+  CRSP_Stocks[,DLRET:=as.numeric(as.character(DLRET))]
+  CRSP_Stocks[,c("Month","Year") := .(month(date),year(date))]
+  CRSP_Stocks[,c("NumMonths") := .((Year*12)+Month)]
+  
+  CRSP_Stocks[, TimeDiff := as.integer(NumMonths - shift(NumMonths)), by = .(PERMNO,PERMCO)] 
+  Incomplete_Stocks <-  unique(CRSP_Stocks[TimeDiff != 1, .(PERMNO,PERMCO,k=1)]) 
+  setkey(Incomplete_Stocks, PERMNO,PERMCO)
+  Time <-  seq(from = min(CRSP_Stocks$NumMonths, na.rm = T), to = max(CRSP_Stocks$NumMonths, na.rm = T))
+  Time <- data.table(Time)[,k:=1]
+  filled <- merge(Incomplete_Stocks,Time,by = "k",allow.cartesian = T)
+  CRSP_Stocks <-  merge(CRSP_Stocks, filled, by.x = c('PERMNO','PERMCO','NumMonths'), by.y = c('PERMNO','PERMCO','Time'), all = T) 
+  setorder(CRSP_Stocks,PERMNO,PERMCO,NumMonths)
+
+  #Delist returns
+  CRSP_Stocks <- CRSP_Stocks[,RET := ifelse(is.na(DLRET),RET,ifelse(is.na(RET),DLRET,(1+RET)*(1+DLRET) - 1))]
+  length(unique(CRSP_Stocks[Year==2015 & Month==12, PERMNO]))
+  
+  return(CRSP_Stocks)
+}
+
+#Function clean compustat and merge with PRBA 
+cleanupCompustat <- function(Compustat_Stocks,Compustat_prba){
+  
+  #####COMPUSTAT
+  #remove financial companies
+  Compustat_Stocks <- Compustat_Stocks[datafmt=="STD" & indfmt=="INDL"]
+  Compustat_prba <- Compustat_prba[indfmt=="INDL"]
+  
+  #Merge with PRBA based on gvkey and date
+  setkey(Compustat_Stocks,gvkey,datadate)
+  setkey(Compustat_prba,gvkey,datadate)
+  Compustat_merged <- merge(Compustat_Stocks,Compustat_prba,all.x = TRUE)
+  Compustat_merged[,datadate:=as.Date(as.character(datadate),"%Y%m%d")]
+  
+  ##Calculate BE
+  Compustat_merged <- calculateBEValue(Compustat_merged)
+  
+  return(Compustat_merged)
+}
+
+#Function used by cleanCompustat to calculate BE
+calculateBEValue <- function(Compustat_merged){
+  #Calcuate SHE
+  Compustat_merged[,SHE:=ifelse(!is.na(seq),seq,ifelse(!is.na(ceq+pstk),
+                                                       ceq+pstk,ifelse(!is.na(mib),at-lt-mib,at-lt)))]
+  
+  #Calculate DT
+  Compustat_merged[,DT:=ifelse(!is.na(txditc),txditc,NA)]
+  Compustat_merged[is.na(DT),DT:=rowSums(.SD,na.rm = T),.SDcols=c("itcb","txdb")]
+  
+  #Calculate PS
+  Compustat_merged[,PS:=ifelse(!is.na(pstkrv),pstkrv,ifelse(!is.na(pstkl),pstkl,pstk))]
+  
+  #Create column with NA for PS and PRBA and add for every row
+  Compustat_merged[,c("NegPS","NegPRBA"):=.(-PS,-prba)]
+  Compustat_merged[,BE:=rowSums(.SD,na.rm = T),.SDcols=c("SHE","NegPS","DT","NegPRBA")]
+  Compustat_merged[is.na(SHE),BE:=NA]
+  #Completed BE Creation
+
+  return(Compustat_merged)
+}
+
+#Function to merge Compustat and linkData
+performMerge <- function(linkData,Compustat_merged){
+  linkData[,c("gvkey","lpermno","lpermco"):=.(as.numeric(gvkey),as.integer(lpermno),as.integer(lpermco))]
+  #Remove everything other than LU, LC and LS, and primary type = P,C
+  #Also remove rows which dont fit into the linkdate range
+  linkData <- linkData[! linktype%in% c("LD","NR","NU","NP","LX","LN","LS") & linkprim %in% c("P","C")]
+  setkey(linkData,gvkey)
+  setkey(Compustat_merged,gvkey)
+  compustat_link <- merge(Compustat_merged,linkData,all.x = T,allow.cartesian = T)
+  compustat_link <- compustat_link[datadate>=linkdt & (datadate<=linkenddt | is.na(linkenddt))]
+  setkey(compustat_link,lpermno,fyear)
+  
+  return(compustat_link)
+}
+
+#COMPANY BASED LINK
+#Function to get ranking based on size for both deciles and SMB/HML
+getSizeRanking <- function(stockInfo,isHML){
+  stockInfo_co <- stockInfo[,.(MktCap=sum(MktCap,na.rm=T),EXCHCD=last(EXCHCD)),.(PERMCO,Year,Month)]
+  
+  #make sure there is valid marketcap at june of the year
+  sizeRank_Info <- stockInfo_co[Month == 6,.(Year,MktCap,PERMCO,EXCHCD)]
+  
+  if(isHML){
+    breakprobs = c(0.0,0.5,1)
+    maxRanking = 2
+  } else{
+    breakprobs = seq(0,1,0.1)
+    maxRanking = 10
+  }
+  
+  sizeRank_Info[,min := quantile(.SD[EXCHCD==1 & !is.na(MktCap),MktCap],probs=breakprobs,type = 7)[1],Year]
+  sizeRank_Info[,SizeRank := as.numeric(cut(MktCap,breaks = quantile(.SD[EXCHCD==1 & !is.na(MktCap),MktCap],breakprobs,type = 7),
+                                            include.lowest = T)),.(Year)]
+  
+  sizeRank_Info[is.na(SizeRank),SizeRank:=ifelse(MktCap<=min,1,maxRanking)]
+  setkey(sizeRank_Info,PERMCO,Year)
+  setkey(stockInfo,PERMCO,Year)
+  sizeRank_Full <- merge(stockInfo,sizeRank_Info,all.x = T)
+  setnames(sizeRank_Full,c("MktCap.x","EXCHCD.x"),c("MktCap","EXCHCD"))
+  sizeRank_Full[,c("Act_Size_Rank","Lag_MktCap") := .(shift(SizeRank,6),shift(MktCap,1)),.(PERMNO)]
+  sizeRank_Full <- sizeRank_Full[!is.na(Act_Size_Rank) & !is.na(Lag_MktCap) & Lag_MktCap != 0]
+  setorder(sizeRank_Full,Year,Month,Act_Size_Rank)
+  return(sizeRank_Full)
+}
+```
+
+###Book-to-Market Deciles
+As per the 1992 paper, the Book-to-Market deciles are based on the Book equity, which is got out of Compustat and Market equity out of the CRSP data. Steps for getting these decile returns are as follows:
+
+ 1. All fundamental information provided in compustat is on a company level. So as our Book equity calculation will be on a company level, we should aggregate our market cap for every company for each month and year.  
+ 2. The BE/ME ratio is calculated using the Book Equity of end of fiscal year t-1 and Market equity (Marketcap) from december year t-1.
+ 3. The BE/ME value of all NYSE stocks should be used for calculating the decile breakpoints.
+ 4. The rankings are rebalanced every year at the end of june, using data from the year before. So ranking of each stock from year t-1 is used for returns from July of year t to June of year t+1 for that stock. 
+ 5. Value weighted returns are calculated for each year month and decile combination using the lagged market capital of the stock.
+ 6. A long short portfolio is created by going long the 10th decile and short the 1st decile for each year month combination.
+ 7. When BE value is NA, we check if there is a valid value for that stock and for that year in the historical BE value file, provided in French website.
+ 8. The data is restricted from 1973 to 2015.  
+   
+**Checks**  
+
+ 1. While calculating the breakpoints for year t, there should be valid stock price (which is valid market cap) in december of year t-1.  
+ 2. Valid Total book assets, book equity in the compustat data at the end of the fiscal year of t-1.  
+
+
+```{r echo=FALSE}
+#Function to get ranking based on BEME for both deciles and SMB/HML
+getBeMeRanking <- function(stockInfo,isSMB){
+  stockInfo_co <- stockInfo[,.(MarketCap=sum(MktCap,na.rm=T),EXCHCD=last(EXCHCD)),.(PERMCO,Year,Month)]
+  
+  annual_stock <- stockInfo_co[Month==12,.(MarketCap,EXCHCD,PERMCO,Year)]
+  setkey(annual_stock,PERMCO,Year)
+  
+  #Use fyear due to difference in datadate and fyear
+  ranking_beme <- merge(annual_stock,compustat_link,by.x=c('PERMCO','Year'),by.y=c('lpermco','fyear'))
+  #####BE/ME ranking
+  ranking_beme <- ranking_beme[,.(PERMCO,Year,gvkey,MarketCap,BE,EXCHCD,at)]
+  setkey(ranking_beme,PERMCO,Year)
+  
+  ###Use historical BE
+  hist_be_btm <- histBe[,c(-2,-3)]
+  hist_be_btm <- melt(hist_be_btm,id.vars = c("PERMNO"))
+  colnames(hist_be_btm) <- c("PERMNO","Year","HistBe")
+  hist_be_btm$Year <- as.numeric(as.character(hist_be_btm$Year))
+  ranking_beme <- merge(ranking_beme,hist_be_btm,by.x = c("PERMCO","Year"),by.y=c("PERMNO","Year"),all.x=T)
+  ranking_beme <- ranking_beme[is.na(BE) & !is.na(HistBe) & HistBe!=-99.99, BE:=HistBe]
+  
+  #Few Checks
+  ranking_beme[is.na(BE) | BE==0 | (!isSMB & is.na(at)),BE:=NA]
+  ranking_beme[is.na(MarketCap) | MarketCap==0,MarketCap:=NA]
+  
+  #Calculate BE/ME
+  ranking_beme[,BEME:=BE/MarketCap]
+  
+  #2 year check
+  #if(isSMB){
+  #  ranking_beme[,hist_id:=seq_len(.N), by=PERMCO]
+  #  ranking_beme[hist_id<=2,BEME:=NA]  
+  #}
+  
+  #Ranking based on BE/ME
+  if(isSMB){
+    breakprob = c(0,0.3,0.7,1)
+    maxRanking = 3
+  } else{
+    breakprob = seq(0,1,0.1)
+    maxRanking = 10
+  }
+  
+  ranking_beme[,min := quantile(.SD[EXCHCD==1 & !is.na(BEME) & (!isSMB | BEME>=0),BEME],probs=breakprob,type = 7)[1],Year]
+  ranking_beme[,BEMERank := as.numeric(cut(BEME,breaks = quantile(.SD[EXCHCD==1 & !is.na(BEME) & (!isSMB | BEME>=0),BEME],
+                                                                    probs=breakprob,type = 7),
+                                             include.lowest = T)),.(Year)]
+  
+  ranking_beme[is.na(BEMERank),BEMERank:=ifelse(is.na(BEME) | (isSMB & BEME<0),NA,ifelse(BEME<=min,1,maxRanking))]
+  setorder(ranking_beme,PERMCO,Year)
+  setkey(ranking_beme,PERMCO,Year)
+  
+  #Shift rank forward by one year as we are using it for next year (another 6 month move forward later)
+  ranking_beme[,BEMERank_lead := shift(BEMERank),by=PERMCO]
+  setkey(stockInfo,PERMCO,Year)
+  #merge with BEME rankings and then move it forward by 6, so that it aligns with july to june
+  Final_BEME <- merge(stockInfo,ranking_beme,all.x=T)
+  setnames(Final_BEME,"EXCHCD.x","EXCHCD")
+  setorder(Final_BEME,PERMCO,Year,Month)
+  
+  #shift Rank foward by 6 as rank is valid only for july. Shift marketcap forward by 1 as we need lag marketcap
+  Final_BEME[,c("Act_BEME_Rank","Lag_MktCap") := .(shift(BEMERank_lead,6),shift(MktCap,1)),.(PERMNO)]
+  #Remove all situations where market cap is NA or 0
+  Final_BEME <- Final_BEME[!is.na(Act_BEME_Rank) & !is.na(Lag_MktCap) & Lag_MktCap!=0.0]
+  setorder(Final_BEME,PERMNO,Year,Month)
+  return(Final_BEME)
+}
+
+#Function to get Value deciles returns
+getValueDeciles <- function(CRSP_Stocks){
+  Beme_Ranking <- getBeMeRanking(CRSP_Stocks,FALSE)
+  Beme_Ret <- Beme_Ranking[,.(Beme_Ret=sum(Lag_MktCap*RET,na.rm = T)/sum(Lag_MktCap,na.rm=T)),
+                            .(Year,Month,Act_BEME_Rank)]
+  setorder(Beme_Ret,Year,Month,Act_BEME_Rank)
+  Beme_output <- Beme_Ret[Year>=1973 & Year<=2015]
+  setkey(Beme_output,Year,Month)
+  
+  return(Beme_output)
+}
+
+#funtion to get Size Deciles returns
+getSizeDeciles <- function(CRSP_Stocks){
+  Size_Ranking <- getSizeRanking(CRSP_Stocks,FALSE)
+  Size_Ret <- Size_Ranking[,.(Size_Ret=sum(Lag_MktCap*RET,na.rm = T)/sum(Lag_MktCap,na.rm=T)),
+                            .(Year,Month,Act_Size_Rank)]
+  setorder(Size_Ret,Year,Month,Act_Size_Rank)
+  Size_output <- Size_Ret[Year>=1973 & Year<=2015]
+  setkey(Size_output,Year,Month)
+  return(Size_output)
+}
+```
+
+###SMB and HML portfolios  
+
+For SMB and HML portfolios, we first create 6 portfolios from sorts of stocks on Market Equity (Size) and BE/ME (Book-to-Market) values. We follow these steps to achieve this:  
+
+1. For Book-to-Market, Divide the stocks into 3 groups based on the 30\%, 70\% and 100\% breakpoints of BE/ME values of NYSE stocks. As for the characteristic portfolios, while calculating the rank and return for year t, the BE is based on end of fiscal year t-1, the ME is based on market equity in December of year t-1. The rank calculated using data from t-1 year, is the rank for returns from July year t+1 to June year t (annual rebalancing)     
+2. For Size, we shall divide stocks into two groups, with the breakpoint being the median of the Market Equity(ME) for stocks in year t-1 (while calculating for year t). The rank calculated using data from t-1 year, is the rank for returns from July year t+1 to June year t. (annual rebalancing).     
+3. We intersect the these 2 rankings and form 6 portfolios. i.e. the small group of the size rankings along with the low BE/ME group of the BTM rankings will be the S/L portfolio. Lets mark this portfolio 1. Similar we can do the same for all the 6 portfolios and mark them with their corresponding ranks (i.e. 1 to 6).    
+4. Now value weighted returns can be calculated for each year month combination, for each of the 6 portfolios.  
+   
+**HML**  
+HML is the difference between the simple average of the two high BE/ME portfolios and the simple average of the two low BE/ME portfolios.  i.e.  
+ _HML = 1/2(Small Value + Big Value) - 1/2(Small Growth + Big Growth)_  
+   
+**SMB**  
+SMB is the difference between the simple average of all 3 small portfolios and the simple average of all 3 big portfolios. i.e.  
+ _SMB = 1/3(Small Value + Small Neutral + Small Growth) - 1/3(Big Value + Big Neutral + Big Growth)_  
+ 
+
+**Checks**  
+
+1. While calculating ranks for year t, we include firms having valid CRSP stock prices (CRSP market cap) of december year t-1 and june year t.  
+2. Firms should also have valid book equity for year t-1.
+3. Only positive BE entries are used for calclating the breakpoints for BE/ME.   
+4. Atleast 2 years of historical data for a company should be available before using it for decile ranking.  
+
+```{r echo=FALSE}
+#Get HML, SMB by independent sorting
+getSMBHMLPort <- function(CRSP_Stocks){
+  bemeRank <- getBeMeRanking(CRSP_Stocks,TRUE)
+  sizeRank <- getSizeRanking(CRSP_Stocks,TRUE)
+  
+  bemeRank <- bemeRank[,.(PERMNO,PERMCO,Year,Month,RET,Act_BEME_Rank,Lag_MktCap)]
+  sizeRank <- sizeRank[,.(PERMNO,PERMCO,Year,Month,RET,Act_Size_Rank,Lag_MktCap)]
+  setkey(bemeRank,PERMCO,PERMNO,Year,Month)
+  setkey(sizeRank,PERMCO,PERMNO,Year,Month)
+  
+  size_beme <- merge(sizeRank,bemeRank)    
+  size_beme[,portCount:=(2*Act_BEME_Rank) + Act_Size_Rank - 2]
+  
+  size_beme_ret <- size_beme[,.(ret=sum(Lag_MktCap.x*RET.x,na.rm =T)/sum(Lag_MktCap.x,na.rm=T)),
+                             .(Year,Month,portCount)]
+  setorder(size_beme_ret,Year,Month,portCount)
+  size_beme_final <- size_beme_ret[,.(PortRet_HML = 0.5*(.SD[portCount==5,ret]+.SD[portCount==6,ret]-
+                                        .SD[portCount==1,ret] - .SD[portCount==2,ret]),
+                                      PortRet_SMB = (.SD[portCount==1,ret]+.SD[portCount==3,ret]+.SD[portCount==5,ret]-
+                                        .SD[portCount==2,ret]-.SD[portCount==4,ret]-.SD[portCount==6,ret])/3),.(Year,Month)]
+  
+  hml_smb_output <- size_beme_final[Year>=1973 & Year<=2015,.(Year,Month,PortRet_HML,PortRet_SMB)]
+  setorder(hml_smb_output,Year,Month)
+  
+  return(hml_smb_output)
+}
+
+#Data Retrieval
+#Get stock returns and price data from CRSP
+crsp.data <- read.csv("StocksData_New.csv",stringsAsFactors=T,header=T)
+crsp.data <- data.table(crsp.data)
+CRSP_Stocks <- copy(crsp.data)
+
+#Get compustat info
+cmpst.data <- fread("Compustat.csv",stringsAsFactors = T,showProgress = F)
+Compustat_Stocks <- copy(cmpst.data)
+
+#Get prba info
+cmpst.prba <- fread("PRBA.csv",stringsAsFactors = T, showProgress = F)
+Compustat_prba <- copy(cmpst.prba)
+
+#Link data
+sql.permnoLink <- "SELECT GVKEY,LPERMNO,LPERMCO,LINKTYPE,LINKPRIM, LINKDT,LINKENDDT,USEDFLAG FROM CRSPA.CCMXPF_LINKTABLE"
+permnoLink <- getData(sql.permnoLink)
+permnoLink <- data.table(permnoLink)
+linkData <- copy(permnoLink)
+
+#Historical BE
+histBe <- read.table("DFF_BE_With_Nonindust.txt",header=F)
+colnames(histBe) <- c("PERMNO","MoodyStart","MoodyEnd",c(1926:2001))
+histBe <- data.table(histBe)
+
+##CRSP
+CRSP_Stocks <- cleanCRSPStocksAndAddMissingRows(CRSP_Stocks)
+
+##Compustat
+Compustat_merged <- cleanupCompustat(Compustat_Stocks,Compustat_prba)
+compustat_link <- performMerge(linkData,Compustat_merged)
+
+#BEME
+Beme_output <- getValueDeciles(CRSP_Stocks)
+
+#Size
+Size_output <- getSizeDeciles(CRSP_Stocks)
+
+#HML
+SMB_HML <- getSMBHMLPort(CRSP_Stocks)
+HMLOutput <- SMB_HML[,c(1,2,3)]
+
+#SMB
+SMBOutput <- SMB_HML[,c(1,2,4)]
+```
+
+###Sample outputs
+
+**Book-to-market deciles**
+```{r echo=FALSE}
+kable(Beme_output[Year==2015 & Month==12],col.names = c("Year","Month","port","BtM_Ret"),caption="Btm Deciles returns")
+```
+
+**Size deciles**
+```{r echo=FALSE}
+kable(Size_output[Year==2015 & Month==12],col.names = c("Year","Month","port","Size_Ret"),caption="Size Deciles returns")
+```
+
+**HML and SMB returns**
+```{r echo=FALSE}
+kable(SMB_HML[Year==2015],caption="HMB and SML portfolios",col.names = c("Year","Month","HML_Ret","SMB_Ret"))
+```
+
+#Question 2 - Size Portfolio Correlation
+
+##Data
+Apart from the results from the previous question (from 1973 to 2015), we also need the Fama French returns divided based on size.
+
+##Methodology
+The output contains the following information for each decile and the long short portfolio :  
+
+1. Arithmetically Annualized excess returns (reduced by risk free rate) of each size decile and the long short portfolio. Arithmetic annualization is done by multiplying by 12.  
+2. Arithmetically annualized standard deviation of each size decile and the long short portfolio.  The annualization is done by multiplying by $\sqrt(12)$  
+3. Annualized Sharpe Ratio, which is calculated by dividing the excess annualized returns and the annualized sharpe ratio.  
+4. Skewness, which is calculated on the actual returns over the time period.  
+5. Correlation, which is formulated by comparing the returns which were calculated and the returns posted on the fama french website. 
+
+Note: The Fama French breakpoints according to the excel sheet from the website, mentions that the breakpoints included the financial firms as well. This might be a reason for the differences in correlation.  
+
+
+````{r echo=FALSE}
+getFFDataDeciles <- function(excel_data,rf){
+  excel_data <- excel_data[,c(1,11:20)]
+  excel_data <- data.table(excel_data)
+  rf_data <- data.table(rf)
+  
+  excel_data[ ,X:=as.numeric(X)]
+  rf_data[,X:=as.numeric(X)]
+  excel_data[,c("Year","Month"):=.(as.integer(X/100),X%%100)]
+  rf_data[,c("Year","Month"):=.(as.integer(X/100),X%%100)]
+  
+  excel_data <- excel_data[Year>=1973 & Year<=2015]
+  rf_data <- rf_data[Year>=1973 & Year<=2015]
+  
+  setorder(excel_data,Year,Month)
+  setorder(rf_data,Year,Month)
+  
+  data_ff <- data.table()
+  for(count in c(1:10)){
+    data <- excel_data[,count+1,with=FALSE]/100
+    full_data <- cbind(excel_data[,Year],excel_data[,Month],count,data,rf_data[,2]/100)
+    colnames(full_data) <- c("Year","Month","Rank","Ret","Rf")
+    data_ff <- rbind(data_ff,full_data)
+  }
+  setorder(data_ff,Year,Month,Rank)
+}
+
+hml_smb <- read.csv("F-F_Research_Data_Factors.csv",skip=3,nrow=1089)
+size <- read.csv("Portfolios_Formed_on_ME.csv",skip=12,nrows=1089)
+rf <- hml_smb[,c(1,5)]
+size_ff <- getFFDataDeciles(size,rf)
+
+#cor(size_ff[,Ret],Size_output[,Size_Ret])
+
+size_data <- matrix(nrow=5,ncol=11,dimnames = list(c("Return","Standard Deviation",
+                                                    "Sharpe Ratio","Skewness","Correlation"),c(1:10,"LongShort")))
+for(i in c(1:10)){
+  size_data[1,i] <- mean(Size_output[Act_Size_Rank==i,Size_Ret]-size_ff[Rank==i,Rf])*12
+  size_data[2,i] <- sd(Size_output[Act_Size_Rank==i,Size_Ret])*sqrt(12)
+  size_data[3,i] <- size_data[1,i]/size_data[2,i]
+  size_data[4,i] <- skewness(Size_output[Act_Size_Rank==i,Size_Ret])
+  size_data[5,i] <- cor(size_ff[Rank==i,Ret],Size_output[Act_Size_Rank==i,Size_Ret])
+}
+
+longshort_size <- Size_output[Act_Size_Rank==1,Size_Ret] - Size_output[Act_Size_Rank==10,Size_Ret]
+size_data[1,11] <- mean(longshort_size)*12
+size_data[2,11] <- sd(longshort_size)*sqrt(12)
+size_data[3,11] <- size_data[1,11]/size_data[2,11]
+size_data[4,11] <- skewness(longshort_size)
+size_data[5,11] <- cor(longshort_size,(size_ff[Rank==1,Ret]-size_ff[Rank==10,Ret]))
+
+kable(size_data[,1:6], caption="Size sort returns for first 6 deciles")
+kable(size_data[,7:11], caption="Size sort returns for last 4 deciles and long short") 
+
+```
+
+
+#Question 3 - BE/ME Portfolio Correlation
+
+##Data
+Apart from the results from the previous question (from 1973 to 2015), we also need the Fama French returns data divided based on book-to-market ratio.
+
+##Methodology
+The output contains the following information for each decile and the long short portfolio :  
+
+1. Arithmetically Annualized excess returns (reduced by risk free rate) of each book-to-market decile and the long short portfolio. Arithmetic annualization is done by multiplying by 12.  
+2. Arithmetically annualized standard deviation of each book-to-market decile and the long short portfolio.  The annualization is done by multiplying by $\sqrt(12)$  
+3. Annualized Sharpe Ratio, which is calculated by dividing the excess annualized returns and the annualized sharpe ratio.  
+4. Skewness, which is calculated on the actual returns over the time period.  
+5. Correlation, which is formulated by comparing the returns which were calculated and the returns posted on the fama french website.  
+
+```{r echo=FALSE}
+beme <- read.csv("Portfolios_Formed_on_BE-ME.csv",skip=23,nrows=1089)
+beme_ff <- getFFDataDeciles(beme,rf)
+#cor(beme_ff[,Ret],Beme_output[,Beme_Ret])
+
+btm_data <- matrix(nrow=5,ncol=11,dimnames = list(c("Return","Standard Deviation",
+                                                    "Sharpe Ratio","Skewness","Correlation"),c(1:10,"LongShort")))
+for(i in c(1:10)){
+  btm_data[1,i] <- mean(Beme_output[Act_BEME_Rank==i,Beme_Ret]-beme_ff[Rank==i,Rf])*12
+  btm_data[2,i] <- sd(Beme_output[Act_BEME_Rank==i,Beme_Ret])*sqrt(12)
+  btm_data[3,i] <- btm_data[1,i]/btm_data[2,i]
+  btm_data[4,i] <- skewness(Beme_output[Act_BEME_Rank==i,Beme_Ret])
+  btm_data[5,i] <- cor(beme_ff[Rank==i,Ret],Beme_output[Act_BEME_Rank==i,Beme_Ret])
+}
+
+longshort_btm <- Beme_output[Act_BEME_Rank==10,Beme_Ret] - Beme_output[Act_BEME_Rank==1,Beme_Ret]
+btm_data[1,11] <- mean(longshort_btm)*12
+btm_data[2,11] <- sd(longshort_btm)*sqrt(12)
+btm_data[3,11] <- btm_data[1,11]/btm_data[2,11]
+btm_data[4,11] <- skewness(longshort_btm)
+btm_data[5,11] <- cor(longshort_btm,(beme_ff[Rank==10,Ret]-beme_ff[Rank==1,Ret]))
+
+kable(btm_data[,1:6], caption="Book-to-Market sort returns for first 6 deciles")
+kable(btm_data[,7:11], caption="Book-to-Market sort returns for last 4 deciles and long short") 
+
+```
+
+#Question 4
+```{r echo=FALSE}
+cleanExcel <- function(excel_data){
+  excel_data <- excel_data[,c(1,11:20)]
+  excel_data <- data.table(excel_data)
+  excel_data <- excel_data[ ,X:=as.numeric(X)]
+  excel_data <- excel_data[,c("Year","Month"):=.(as.integer(X/100),X%%100)]
+  return(excel_data)
+}
+
+size_ff_q4 <- cleanExcel(size)
+value_ff_q4 <- cleanExcel(beme)
+
+plot(y=value_ff_q4[Year>=2012 & Year<=2015,Hi.10-Lo.10]/100,x=c(1:48),type="l",xlab="Time",ylab="Ret",main="Return on longshort on size and BTM since 2012")
+lines(y=size_ff_q4[Year>=2012 & Year<=2015,Hi.10-Lo.10]/100, x=c(1:48), col="red")
+legend("topleft", c("Value","Size"),col=c("black","red"), lty=1)
+
+#longshort_size_q4 <- Size_output[Act_Size_Rank==1 & Year>=2012,Size_Ret] - Size_output[Act_Size_Rank==10 & Year>=2012,Size_Ret]
+#longshort_btm_q4 <- Beme_output[Act_BEME_Rank==10 & Year>=2012,Beme_Ret] - Beme_output[Act_BEME_Rank==1 & Year>=2012,Beme_Ret]
+#plot(y=longshort_btm_q4,x=c(1:48),type="l")
+#lines(y=longshort_size_q4, x=c(1:48),col = "red")
+#legend("topleft", c("Value","Size"),col=c("black","red"), lty=1)
+
+```
+As can be seen in the graph for anomaly returns from 2012 to 2017, even though both have had losses during the period, the long-short value portfolio has more consistently provided positive returns as compared to the long-short size portfolio.  
+  
+The previous results also suggests that the BE/ME characteristic (anomaly) has a much higher sharpe ratio compared to the Size characteristic. Based on the tests conducted by Bonferroni, Holm and BHY (Benjamin, Hochberg and Yekutieli), it has been proven that the t statistics for the size portfolio is very low, which doesn't warrant any significant return. Whereas the value anomaly has highly significant returns.     
+
+
+#Question 5 - HML and SMB Portfolio 
+##Data
+Apart from the results from the previous question (from 1973 to 2015), we also need the Fama French returns data for the SMB and HML factors.
+
+##Methodology
+The output contains the following information for the HML and SMB factor portfolio:  
+
+1. Arithmetically Annualized excess returns (_not reduced by risk free rate_) for the SMB and HML portfolio. Arithmetic annualization is done by multiplying by 12.  
+2. Arithmetically annualized standard deviation for SMB and HML portfolio. The annualization is done by multiplying by $\sqrt(12)$  
+3. Annualized Sharpe Ratio, which is calculated by dividing the excess annualized returns and the annualized sharpe ratio.  
+4. Skewness, which is calculated on the actual returns over the time period.  
+5. Correlation, which is formulated by comparing the returns which were calculated and the returns posted on the fama french website.  
+  
+P.S. The arithmetic excess return in the first row just indicates the actual return of the portfolio minus how much was spent in funding the portfolio. If return was to compare how much more return than risk free rate is produced, then another row has been added with this information.    
+
+```{r echo=FALSE}
+hml_smb <- hml_smb[,c(1,3,4)]
+hml_smb <- data.table(hml_smb)
+hml_smb <- hml_smb[ ,X:=as.numeric(X)]
+hml_smb <- hml_smb[,c("Year","Month"):=.(as.integer(X/100),X%%100)]
+hml_smb <- hml_smb[Year>=1973 & Year<=2015]
+rf_info <- data.table(rf)
+rf_info <- rf_info[,X:=as.numeric(X)]
+
+setorder(rf_info,X)
+setorder(hml_smb,Year,Month)
+
+hml_port <- hml_smb[,.(Year,Month,HML=HML/100)]
+rf_info <- rf_info[X>=197301 & X<=201512, .(X = X,RF = RF/100)]
+setorder(hml_port,Year,Month)
+
+hml_smb_ans <- matrix(nrow=6,ncol=2,dimnames=list(c("Excess Return","Standard Deviation",
+                                                    "Sharpe Ratio","Skewness","Correlation","Excess Return - Rf"),c("HML","SMB")))
+hml_smb_ans[1,1] <- mean(HMLOutput[,PortRet_HML])*12
+hml_smb_ans[2,1] <- sd(HMLOutput[,PortRet_HML])*sqrt(12)
+hml_smb_ans[3,1] <- hml_smb_ans[1,1]/hml_smb_ans[2,1]
+hml_smb_ans[4,1] <- skewness(HMLOutput[,PortRet_HML])
+hml_smb_ans[5,1] <- cor(hml_port[,HML],HMLOutput[,PortRet_HML])
+hml_smb_ans[6,1] <- mean(HMLOutput[,PortRet_HML]-rf_info$RF)*12
+
+smb_port <- hml_smb[,.(Year,Month,SMB=SMB/100)]
+setorder(smb_port,Year,Month)
+
+hml_smb_ans[1,2] <- mean(SMBOutput[,PortRet_SMB])*12
+hml_smb_ans[2,2] <- sd(SMBOutput[,PortRet_SMB])*sqrt(12)
+hml_smb_ans[3,2] <- hml_smb_ans[1,2]/hml_smb_ans[2,2]
+hml_smb_ans[4,2] <- skewness(SMBOutput[,PortRet_SMB])
+hml_smb_ans[5,2] <- cor(smb_port[,SMB],SMBOutput[,PortRet_SMB])
+hml_smb_ans[6,2] <- mean(SMBOutput[,PortRet_SMB]-rf_info$RF)*12
+
+kable(hml_smb_ans)
+```
+
+#Question 6
+##Characteristic portfolios
+The characteristic portfolios (1992) are aimed at showing that two easily measurable variables, size (ME) and book-to-market equity (BE/ME) provide a simple and powerful characterization of the cross-section of average stock returns. For example, it has been shown that there is a high positive correlation between average return and book-to-market equity, which is unlikely a beta effect (as beta changes very less across portfolios ranked on BE/ME values). On the whole, it was proved that size and book-to-market captures the cross-sectional variation in average stock returns associated with size, book-to-market and E/P and leverage (while used in combination).  
+  
+The characteristic portfolio is based on the **Fama Macbeth regression** of the average returns against the variables hypothesized to explain the returns. 
+  
+##Factor Portfolios  
+The factor portfolios(1993) on the other hand identified the mimicking portfolios for size and book-to-market equity which can then used in a **time-series regression** approach to identify factor loadings on these mimicking portfolios. This goes along with the theme that if assets are priced rationally, then variables related to average returns must proxy for sensitivity to common risk factors. The paper proves that these mimicking factors, seperately and together, capture strong common variation in returns.   
+  
+The time series regression also indicates these factors alone can't explain the average return on stocks. Major difference between the average return on stocks and T-bill is explained by the market factor.  
+  
+
+
+
