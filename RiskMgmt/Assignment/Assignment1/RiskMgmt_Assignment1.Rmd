@@ -1,0 +1,483 @@
+---
+title: "Risk Management Assignment 1"
+subtitle: "Nitish Ramkumar"
+author: "Collaborators : Carlos Quicazan, Justin Ge, Yuying Wang"
+output: pdf_document
+---
+
+#Question 1.1
+##1.1
+Bank gets cash by raising equity
+```{r echo=FALSE}
+library(knitr)
+q1 <- matrix('',nrow=1,ncol=2)
+q1[1,1] <- "Cash - $30"
+q1[1,2] <- "Equity Capital - $30"
+kable(q1,col.names=c("Assets","Liabilities/Equity"))
+```
+
+##1.2
+Bank gets cash by raising debt
+```{r echo=FALSE}
+q2 <- matrix('',nrow=2,ncol=2)
+q2[1,1] <- "Cash - $80"
+q2[1,2] <- "Equity Capital - $30"
+q2[2,2] <- "Bond Debt - $50"
+kable(q2,col.names=c("Assets","Liabilities/Equity"))
+```
+
+##1.3
+Bank uses cash to buy bonds
+```{r echo=FALSE}
+q3 <- matrix('',nrow=2,ncol=2)
+q3[1,1] <- "Cash - $40"
+q3[2,1] <- "Marketable Securities(T Bond) - $40"
+q3[1,2] <- "Equity Capital - $30"
+q3[2,2] <- "Bond Debt - $50"
+kable(q3,col.names=c("Assets","Liabilities/Equity"))
+```
+
+##1.4
+Bank gets deposits which adds to cash
+```{r echo=FALSE}
+q4 <- matrix('',nrow=4,ncol=2)
+q4[1,1] <- "Cash - $100"
+q4[2,1] <- "Marketable Securities(T Bond) - $40"
+q4[1,2] <- "Equity Capital - $30"
+q4[2,2] <- "Bond Debt - $50"
+q4[3,2] <- "Deposit(Checking) - $40"
+q4[4,2] <- "Deposit(Savings) - $20"
+kable(q4,col.names=c("Assets","Liabilities/Equity"))
+```
+
+##1.5
+Bank uses cash to makes loans
+```{r echo=FALSE}
+q5 <- matrix('',nrow=4,ncol=2)
+q5[1,1] <- "Cash - $10"
+q5[2,1] <- "Marketable Securities(T Bond) - $40"
+q5[3,1] <- "Loans - $90"
+q5[1,2] <- "Equity Capital - $30"
+q5[2,2] <- "Bond Debt - $50"
+q5[3,2] <- "Deposit(Checking) - $40"
+q5[4,2] <- "Deposit(Savings) - $20"
+kable(q5,col.names=c("Assets","Liabilities/Equity"))
+```
+
+#Question 1.2
+
+##1a
+Cash is not enough to pay customers. So we need to sell T-bonds to pay customers.
+```{r echo=FALSE}
+q2_1 <- matrix('',nrow=4,ncol=2)
+q2_1[1,1] <- "Cash - $0"
+q2_1[2,1] <- "Marketable Securities(T Bond) - $20"
+q2_1[3,1] <- "Loans - $90"
+q2_1[1,2] <- "Equity Capital - $30"
+q2_1[2,2] <- "Bond Debt - $50"
+q2_1[3,2] <- "Deposit(Checking) - $10"
+q2_1[4,2] <- "Deposit(Savings) - $20"
+kable(q2_1,col.names=c("Assets","Liabilities/Equity"))
+```
+
+##1b
+By using only marketable securities (TBonds),
+```{r echo=FALSE}
+q2_2 <- matrix('',nrow=4,ncol=2)
+q2_2[1,1] <- "Cash - $10"
+q2_2[2,1] <- "Marketable Securities(T Bond) - $10"
+q2_2[3,1] <- "Loans - $90"
+q2_2[1,2] <- "Equity Capital - $30"
+q2_2[2,2] <- "Bond Debt - $50"
+q2_2[3,2] <- "Deposit(Checking) - $10"
+q2_2[4,2] <- "Deposit(Savings) - $20"
+kable(q2_2,col.names=c("Assets","Liabilities/Equity"))
+```
+
+##1c
+**Cash**  
+*Pros*  
+1) By using cash, we don't lose out on interest income from the bonds  
+  
+*Cons*  
+1) With 0 cash, the bank might face liquidity issues
+
+**TBonds**  
+*Pros*  
+1) Bank maintains cash, which means it is liquid.
+2) By selling T-Bonds, it is reducing its exposure to market risk.  
+  
+*Cons*  
+1) As T-bonds aren't very liquid, there is a chance that high cost will be involved (transaction cost).  
+  
+##2
+There is not enough liquid asset to pay off all the customer deposits. So we need to sell illiquid loans.  
+We will need 10 more of assets to pay off the customers. This will be 40 of the illiquid loan due to the 75\% loss(40 * 0.25 = 10). The loss involved is subtracted from the equity
+```{r echo=FALSE}
+q2_3 <- matrix('',nrow=4,ncol=2)
+q2_3[1,1] <- "Cash - $0"
+q2_3[2,1] <- "Marketable Securities(T Bond) - $0"
+q2_3[3,1] <- "Loans - $50"
+q2_3[1,2] <- "Equity Capital - $0 (with loss)"
+q2_3[2,2] <- "Bond Debt - $50"
+q2_3[3,2] <- "Deposit(Checking) - $0"
+q2_3[4,2] <- "Deposit(Savings) - $0"
+kable(q2_3,col.names=c("Assets","Liabilities/Equity"))
+```
+
+##3
+There writeoff due to default will reduce the value of the loans and also the loss will be reduced from the equity. This makes the equity negative, which means the bank is insolvent (i.e. the assets are less than the liabilities).
+```{r echo=FALSE}
+q2_4 <- matrix('',nrow=4,ncol=2)
+q2_4[1,1] <- "Cash - $10"
+q2_4[2,1] <- "Marketable Securities(T Bond) - $40"
+q2_4[3,1] <- "Loans - $50"
+q2_4[1,2] <- "Equity Capital - $-10 (with loss)"
+q2_4[2,2] <- "Bond Debt - $50"
+q2_4[3,2] <- "Deposit(Checking) - $20"
+q2_4[4,2] <- "Deposit(Savings) - $40"
+kable(q2_4,col.names=c("Assets","Liabilities/Equity"))
+```
+
+##4
+
+The current equity ratio = 21.429\%  
+
+To increase the equity ratio to 25\%, we can either
+
+a) *Increase Equity*
+
+$\frac{30+x}{140+x} = 0.25$ => x = **$6.67**  
+  
+i) This methods tends to hide the fact that the manager in incompetent  
+ii) It is generally a cheaper form of financing, but this doesn't necessary mean that the profits will increase.s  
+  
+b) *Reduce Liability using assets*  
+  
+$\frac{30}{140-x} = 0.25$ => x = **$20**  
+  
+This reduction of liability of $20 can be done using liquid assets. This will have no impact on profits. But by reducing liquid assets, we might face a liquidity risk.  
+
+#Question 2
+
+##2.1
+As W is an exponential function,  
+  
+PDF of W = $\lambda e^{-{\lambda} W}$
+  
+So we know from the concept of VaR that,  
+Prob(W < $W_0$ - VaR) = (1-c), where c = 99\%  
+  
+$\int_0^{W_0 - VaR} \lambda e^{-{\lambda}W}~dW$ = 1 - $e^{-{\lambda}(W_0 - VaR)}$ = 1-c  
+  
+=> VaR = $W_0$ + $\frac{ln(c)}{\lambda}$ = $W_0$ + $W_0 ln(c)$ (as $\lambda$ = $\frac{1}{W_0}$)  
+  
+Substituting values, we get VaR = **9.8995**  
+
+##2.2
+Similar to previous case, but this time the VaR should be calculated from $W_0$ + VaR to infinity.  
+
+Prob(W > $W_0$ + VaR) = (1-c), where c = 99\%  
+  
+Prob(W < $W_0$ + VaR) = c     
+     
+$\int_0^{W_0 + VaR} \lambda e^{-{\lambda}W}~dW$ = 1 - $e^{-{\lambda}(W_0 + VaR)}$ = c  
+  
+=> VaR = -$W_0$ + $\frac{-ln(1-c)}{\lambda}$ = $-W_0$ - $W_0 ln(1-c)$  
+      
+Substituting values, we get VaR = **36.05**
+
+##2.3
+There is a difference between 1 and 2 because of which portion of the cdf we consider as the risk. In 1, we have our risk in the initial portion of the exponential and for 2, we have it at the end of the distribution.
+
+##2.4a
+
+Expected Shortfall = $W_0$ - E[W | W <= ($W_0$ - VaR)]
+  
+= $W_0$ - $\frac{\int_0^{W_0 - VaR} W \phi(W)~dW}{\int_0^{W_0 - VaR} \phi(W)~dW}$  
+  
+= $W_0$ - $\frac{\int_0^{W_0 - VaR} W {\lambda} e^{-{\lambda}W}~dW}{\int_0^{W_0 - VaR} {\lambda} e^{-{\lambda}W}~dW}$  
+
+Use t = $\lambda$ W => dt = $\lambda$ dW, Using this as $\lambda = \frac{1}{W_0}$    
+  
+=  $W_0$[1 - $\frac{\int_0^{\frac{W_0 - VaR}{W_0}} t e^{-t}~dt}{\int_0^{\frac{W_0 - VaR}{W_0}} e^{-t}~dt}$] 
+Use product rule for integration,
+
+= $W_0$[1 - [$\frac{{\lambda}(W_0-VaR).e^{-{\lambda}(W_0-VaR)} + e^{-{\lambda}(W_0-VaR)} -1}{e^{-{\lambda}(W_0-VaR)} -1}$]]  
+   
+  $\lambda$($W_0$ - VaR) = 0.01005
+
+= **9.949834**
+
+##2.4b
+
+Expected Shortfall = E[W | W >= ($W_0$ + VaR)] - $W_0$
+  
+= $\frac{\int_{W_0 + VaR}^{Inf} W \phi(W)~dW}{\int_{W_0 + VaR}^{Inf} \phi(W)~dW}$  - $W_0$
+  
+= $\frac{\int_{W_0 + VaR}^{Inf} W {\lambda} e^{-{\lambda}W}~dW}{\int_{W_0 + VaR}^{Inf} {\lambda} e^{-{\lambda}W}~dW}$  - $W_0$
+
+Use t = $\lambda$ W => dt = $\lambda$ dW, Using this as $\lambda = \frac{1}{W_0}$    
+  
+=  -$W_0$[1 + $\frac{\int_{\frac{W_0 - VaR}{W_0}}^{Inf} t e^{-t}~dt}{\int_{\frac{W_0 - VaR}{W_0}}^{Inf} e^{-t}~dt}$]  
+  
+Use product rule for integration,
+
+= lim c-> Inf $W_0$[1 + [$\frac{e^{-c} (c+1) - e^{\frac{W_0 + VaR}{- W_0}}(\frac{W_0 + VaR}{W_0} + 1)}{e^{\frac{W_0 + VaR}{- W_0}} - e^{-c} } + 1$]]  
+  
+  Solve this by using L'Hospitals rule 
+   
+  $\lambda$($W_0$ + VaR) = 4.6005
+
+So value = **46.05**
+ 
+#Question 3
+##1
+
+The VAR of the stock can be calculated using the quintile normal function. 
+
+We know that returns are distributed normally with mean $(\mu - {\sigma}^2/2)T$ and standard deviation of $\sigma \sqrt{T}$. Let the quintile value be $\alpha$  
+  
+Once we get it, we need to convert it to stock prices using $S_0 e^{\alpha}$.  
+  
+So based on this, the VAR is
+```{r echo=FALSE}
+
+#1
+ret <- 0.08
+sd <- 0.2
+N <- 252
+c <- 0.99
+rf <- 0.01
+period <- 10/N
+S0 <- 10
+
+z <- qnorm(1-c)
+ret.mean <-  (ret - ((sd^2)/2))*period
+ret.sd <- sd*sqrt(period)
+#As prices are lognormal, returns are normal
+qval <- qnorm(0.01,ret.mean,ret.sd)
+var <- S0 - S0*exp(qval)
+var
+```
+
+
+##2
+When we need to calculate the weight of the stocks in a stocks bonds portfolio keeping VAR in mind, we need to equate the VAR of the portfolio of bonds and stocks with 1 million (capital).   
+  
+$-(r_p + z_{1\%}{\sigma}_p * 1000000= 1000000$  
+  
+where $r_p$ = return of the portfolio = $w_s * ((\mu - {\sigma}^2/2)T) + (1-w_s) * risk free$  
+${\sigma}_p$ = standard deviation of portfolio = $w_s * \sigma \sqrt{T})$  
+$z_{1\%}$ = quintile value of 1\% in normal distribution
+
+After solving for $w_s$, we get
+
+```{r echo=FALSE}
+#Function to calculate weight, if all capital = VAR
+calculateWGivenVar <- function(rf,retmean,retsd,c){
+  z <- qnorm(1-c)
+  w <- (-1-rf)/(retmean-rf+z*retsd)
+  return(w)
+}
+
+#Calculate weight for all capital VAR for stocks and bonds
+stockW <- calculateWGivenVar(rf*period,ret.mean,ret.sd,0.99)
+weight2 <- c(stockW,1-stockW)
+names(weight2) <- c("Weight on Stock","Weight on risk free rate")
+weight2
+```
+
+The weight is very high because we can lose the entire amount of money, which means we can take more risk.
+
+##3
+
+For call or put bond portfolio, 
+
+1) we will first calculate $C_0$ (Call price at t=0) using black scholes.
+2) Then we can simulate multiple stock paths and generate $S_10$ (Stock price at time 10 days)
+3) Calculate $C_10$ using black scholes
+4) Find the quintile point (VP) for 1\% of the $C_10$ prices. Calculate VAR as $C_0$ - VP = $VaR_C$
+5) Now, we can say $VaR_C$ * NoOfStocks(NS) = 1000000 (This is an assumption that the risk free doesn't contribute to VAR)
+6) Using NS, we can calculate the total amount of bond and weight of stocks by creating a portfolio of 1 million.
+
+After performing these steps, we get these weights for the call bond portfolio
+```{r echo=FALSE}
+#Generate Stock price path
+generateStockPath <- function(S0,r,Time,h,sigma){
+  prices <- c()
+  prices[1] <- S0;
+  for(count in 2:11){
+    prices[count] <- prices[count-1]*exp((r-(sigma^2)/2)*h + sigma*rnorm(1)*sqrt(h))
+  }
+
+  return(prices)
+}
+
+#Perform monte carlo to calculate 10 day return for option
+#S0 - initial stock price; #K Strike; #Time - time to expiry; #rf - risk free
+#meanRet - stock mean ret; sdRet - stand dev ret; NoOfSim - numberofSims
+#Opt0 - Opt initial price; OptionType = c/p
+monteCarloOptionReturn <- function(S0,K1,Time,rf,meanRet,sdRet,NoOfSim,h,Opt0,OptionType){
+  allReturns <- c() 
+  optPrice <- c()
+  for(simCount in 1:NoOfSim){
+    stockPrices <- generateStockPath(S0,meanRet,Time,h,sdRet)
+    S10 <- stockPrices[11]
+    bsret <- blackscholes(S10, K1, rf, Time-(10*h), sdRet)
+    if(OptionType=="c"){
+      optPrice[simCount] = bsret[1]
+    }
+    else{
+      optPrice[simCount] = bsret[2]
+    }
+    
+    allReturns[simCount] <- (optPrice[simCount] - Opt0)/Opt0
+  } 
+  
+  vp <- quantile(optPrice,0.01)
+  var <- Opt0 - vp
+  
+  NoOfOpt <- capital/var
+  BondAmount <- capital - (NoOfOpt*Opt0)
+  optWeight <- NoOfOpt*Opt0/(NoOfOpt*Opt0 + BondAmount)
+  result <- c(optWeight,mean(allReturns),sd(allReturns))
+  return(result)
+}
+
+
+S0 <- 10
+K <- 10 #ATM Option
+Time <- 3/12 
+N <- 252
+h <- 1/N
+rf <- 0.01
+capital <- 1000000
+
+blackscholes <- function(S, X, rf, Time, sigma) {
+    values <- c(2)
+      
+    d1 <- (log(S/X)+(rf+sigma^2/2)*Time)/(sigma*sqrt(Time))
+    d2 <- d1 - sigma * sqrt(Time)
+ 
+    values[1] <- S*pnorm(d1) - X*exp(-rf*Time)*pnorm(d2)
+    values[2] <- X*exp(-rf*Time) * pnorm(-d2) - S*pnorm(-d1)
+ 
+    values
+}
+
+set.seed(0)
+C0 <- blackscholes(S0, K, rf, Time, sd)[1]
+callMoments <- monteCarloOptionReturn(S0,K,Time,rf,ret,sd,10000,h,C0,"c")
+
+weight3 <- c(callMoments[1],1-callMoments[1])
+names(weight3) <- c("Weight on Call","Weight on Risk Free")
+weight3
+```
+
+
+##4
+
+After performing similar steps for put, we get the following weight for put bond portfolio, but by using
+4) Find the quintile point (VP) for 99\% of the $P_10$ prices. Calculate VAR as VP - $P_0$ = $VaR_P$
+
+
+```{r echo=FALSE}
+P0 <- blackscholes(S0, K, rf, Time, sd)[2]
+set.seed(0)
+putMoments <- monteCarloOptionReturn(S0,K,Time,rf,ret,sd,10000,h,P0,"p")
+weight4 <- c(putMoments[1],1-putMoments[1])
+names(weight4) <- c("Weight on Put","Weight on Risk Free")
+weight4
+```
+
+##5
+
+We can repeat the 3 and 4 part of the question with various strikes to get the following graphs for expected return and weight of asset in the portfolio.
+
+```{r echo=FALSE}
+
+strikes=seq(1:20)
+Nsim = 10000
+CallP=matrix(0,nrow=Nsim, ncol=length(strikes))
+PutP=matrix(0,nrow=Nsim, ncol=length(strikes))
+C0=double(length(strikes))
+P0=double(length(strikes))
+Return_C=matrix(0,nrow=Nsim, ncol=length(strikes))
+Return_P=matrix(0,nrow=Nsim, ncol=length(strikes))
+Weight_C=double(length(strikes))
+Weight_P=double(length(strikes))
+Amount_C=double(length(strikes))
+Amount_P=double(length(strikes))
+VAR_C=double(length(strikes))
+VAR_P=double(length(strikes))
+Mean_C=double(length(strikes))
+Sd_C=double(length(strikes))
+Mean_P=double(length(strikes))
+Sd_P=double(length(strikes))
+
+set.seed(0)
+for (j in 1:length(strikes)){
+  zeroVal <- blackscholes(S0, strikes[j], rf, Time, sd)
+  C0[j] <- zeroVal[1]
+  P0[j] <- zeroVal[2]
+  for(i in 1:Nsim){
+    S <- generateStockPath(S0,ret,Time,h,sd)
+    
+    val_10 <- blackscholes(S[11], strikes[j], rf, Time-(h*10), sd)
+    CallP[i,j]=val_10[1]
+    PutP[i,j]=val_10[2]
+    
+    Return_C[i,j]=(CallP[i,j]/C0[j])-1
+    Return_P[i,j]=(PutP[i,j]/P0[j])-1
+  }
+  # Call mean, standard deviation and VaR
+  Mean_C[j]=mean(Return_C[,j])
+  Sd_C[j]=sd(Return_C[,j])
+  VAR_C[j]=C0[j]-quantile(CallP[,j],0.01)
+  
+  # Call weight
+  Amount_C[j]=(capital/VAR_C[j])*C0[j]
+  Weight_C[j]=Amount_C[j]/capital
+  
+  # Put mean, standard deviation and VaR
+  Mean_P[j]=mean(Return_P[,j])
+  Sd_P[j]=sd(Return_P[,j])
+  VAR_P[j]=P0[j]-quantile(PutP[,j],0.01) 
+  
+  # Put weight
+  Amount_P[j]=(capital/VAR_P[j])*P0[j]
+  Weight_P[j]=Amount_P[j]/capital
+}
+plot(Weight_P, type="l",xlab="Strike", ylab="Weight",ylim=c(-4,12),col="red")
+title("Plot of weights of assets with strike")
+lines(Weight_C,col="black")
+lines(rep(stockW,20), col="blue")
+legend("bottomright",c("calls","puts","stocks"),col=c("black","red","blue"), lty=1)
+
+port_Call=Weight_C*Mean_C+(1-Weight_C)*rf*(10/252)
+port_Put=Weight_P*Mean_P+(1-Weight_P)*rf*(10/252)
+port_Stk=rep(stockW*ret.mean+(1-stockW)*rf*(10/252),20)
+plot(port_Call[1:19], type="l",xlab="Strike", ylab="Expected Portfolio Return", ylim=c(-1,1),axes=FALSE)
+axis(side = 1,at =c(1,4,8,12,16,20))
+axis(side = 2,at = seq(-1,0.5,0.2))
+box()
+title("Portfolio return with strike")
+lines(port_Put[1:19],col="red")
+lines(port_Stk[1:19],col="blue")
+legend("bottomright",c("calls + bonds","puts + bonds","stocks + bonds"),col=c("black","red","blue"),lty=1)
+```
+
+As can be seen the call + bonds is a better option for strikes >= 4  and a put+bond portfolio  is better for strike <4.   
+Strike of 3 for a put bond portfolio is ideal for <4 (return = 125\%) and strike of 18 (return = 34.6\%) is ideal for >= 4.  
+The intuition is as follows
+
+1) When the call is deep in the money (left part of the graph), the prices doesn't change much, which shows the limited returns. Also it will be very expensive, which makes the demand for it less.
+2) As it approaches ATM, the demand increases and the price also reduces. This increase demand for these options, which produces higher opportunity for returns.
+3) When it reaches deep OTM, there is again a drop in demand as there is very low probability for a return in the future.
+4) With regards to Put, we get higher returns when the option is out of the money, due to high demands in case stock prices go down. But as the strike goes up (option becomes in the money), there is no demand for put.   
+
+If we have to respect a constraint in expected shortfall (which will always be greater than VAR), we have opportunity to take more risk, which allows us to increase weight in the assets more.
+
+
+

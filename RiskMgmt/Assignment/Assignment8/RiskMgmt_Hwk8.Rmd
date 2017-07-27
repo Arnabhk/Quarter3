@@ -1,0 +1,375 @@
+---
+title: "Risk Management Homework 8"
+author: "Nitish Ramkumar"
+output: pdf_document
+---
+
+#Question 1
+##1.1 
+
+Price of the option as calculated by black scholes equation.  
+
+```{r echo=FALSE}
+library(knitr)
+black_scholes <- function(S, X, rf, Time, sigma,iscall) {
+    d1 <- (log(S/X)+(rf+sigma^2/2)*Time)/(sigma*sqrt(Time))
+    d2 <- d1 - sigma * sqrt(Time)
+ 
+    if(iscall){
+      value <- S*pnorm(d1) - X*exp(-rf*Time)*pnorm(d2)
+    }
+    else{
+      value <- X*exp(-rf*Time) * pnorm(-d2) - S*pnorm(-d1)
+    }
+    return(value)
+}
+
+S0 <- 52
+strike <- 50
+r <- 0.05
+sigma <- 0.3
+time <- 1
+price <- black_scholes(S0,strike,r,time,sigma,TRUE)
+price
+```
+
+##1.2
+The value of a option which has a 2\% change of default 
+```{r echo=FALSE}
+q <- 0.02
+price * (1-q)
+```
+
+##1.3
+The difference in credit loss between this question and previous one, is that credit loss occurs only if option is ITM in the second case.
+
+Cost of default in previous case is
+```{r echo=FALSE}
+itm_prob <- function(S, X, rf, Time, sigma,iscall) {
+    d2 <- (log(S/X)+(rf-sigma^2/2)*Time)/(sigma*sqrt(Time))
+    return(pnorm(-d2))
+}
+
+cod_1 <- price*q
+cod_1
+```
+  
+Cost of default in this case is  
+```{r echo=FALSE}
+cod_2 <- price*itm_prob(S0,strike,r,time,sigma,TRUE)*q
+cod_2
+```
+
+The difference is:  
+```{r echo=FALSE}
+cod_1 - cod_2
+```
+
+
+##1.4
+Cost of default as of today is:
+```{r echo=FALSE}
+p <- 0.01
+cod_4 <- price*(1-itm_prob(S0,strike,r,time,sigma,TRUE)) * p
+cod_4
+```
+
+In this case, we can see that there is a credit risk for both the buyer (in case seller goes bankrupt when option is in-the-money) and for the seller (in case buyer goes bankrupt when option is out-of-the-money).  
+  
+Option value for buyer, is the actual value which the buyer is to gain out of this deal. That is the PV of all payoffs(which is price of option), but she will get it only when the option is ITM and seller hasnt defaulted
+```{r echo=FALSE}
+price * itm_prob(S0,strike,r,time,sigma,TRUE) * (1-q)
+```
+
+Option value for seller, is the actual value of the amount which the seller is expected to receive. In this case, the price calculated from the black-scholes will be received by the buyer at maturity irrespective of what happens to the option. But if the option is in the money, the seller needs to be pay back the buyer the present value of cashflows(which is the price). So when option is ITM, seller gets 0. Also the buyer shouldnt default when option is not in the money.  
+```{r echo=FALSE}
+price * (1-itm_prob(S0,strike,r,time,sigma,TRUE)) * (1-p)
+```
+
+# Question 2
+##2.1
+
+When defaults are independent
+```{r echo=FALSE}
+probDef <- 0.05
+
+junior <- 1 * (1-probDef) * (1-probDef)
+senior <- 1 * (1 - (probDef * probDef))
+kable(t(c(junior,senior)),col.names=c("Junior","Senior"))
+```
+
+When defaults are correlated
+```{r echo=FALSE}
+probDef <- 0.05
+
+junior <- 1 * (1-probDef)
+senior <- 1 * (1-probDef)
+kable(t(c(junior,senior)),col.names=c("Junior","Senior"))
+```
+
+##2.2
+```{r echo=FALSE}
+library(pbivnorm)
+default_qt <-  qnorm(probDef)
+non_default_qt <- qnorm(1-probDef)
+
+cors <-  seq(-1.0,1.0,by= 0.1)
+senior <-  sapply(cors,function(cor) (pbivnorm(default_qt,default_qt,cor)))
+junior <-  sapply(cors,function(cor) (1-pbivnorm(non_default_qt,non_default_qt,cor)))
+
+plot(y=junior,x=cors,type = "l",main = "Junior tranch default probability", 
+     xlab="correlation",ylab="default rates")
+plot(y=senior,x=cors,type="l",main="Senior tranch default probability", 
+     xlab="correlation", ylab="default rates")
+lines(y=senior,x=cors,col="red")
+
+```
+Default rates decreases with increase in copula correlation for junior tranch.  
+Default rates increases with increase in copula correlation for senior tranch.  
+
+  
+##2.3
+As they are independent, probability for default is   
+```{r echo=FALSE}
+probDef_2 <- probDef^2
+probDef_3 <- probDef^3
+kable(t(c(probDef_2,probDef_3)),col.names=c(2,3))
+```
+  
+Probability of default reduces with increase in number of uncorrelated assets.
+
+##2.4 CDOS
+Find the mezzanine level default probability at level 1 and then split them again into senior, mezzanine and junior tranches.  
+  
+So senior default on the mezzanine tranches = mezzanine $default_1$ * mezzanine $default_2$ * mezzanine $default_3$ (all are the same). Similarly it can be done for the other tranches on the mezzanine tranch.  
+
+```{r echo=FALSE}
+mezdefault <- probDef*probDef*probDef + (3 * (1-probDef) * probDef * probDef)
+
+senior_mezdefault <- mezdefault * mezdefault * mezdefault  
+mez_mezdefault <- mezdefault * mezdefault * mezdefault   + 
+  (3 * (1-mezdefault) * mezdefault * mezdefault)
+kable(t(c(senior_mezdefault,mez_mezdefault)),col.names=c("Senior CDO2","Mez CDO2"))
+```
+
+  
+Though the probability looks like a small number, we ignore the fact that during high stress situations, all bonds will be highly correlated. That would surely increase the probability of default.  
+  
+##2.5
+**Probability of default = 10\%**
+
+_3 normal bonds_  
+
+**Probability of default difference between 2 and 3 bonds for senior (Question 3)**    
+
+```{r echo=FALSE}
+probDef_2 <- 0.1
+senior_2_2bonds <- probDef_2^2
+senior_2_3bonds <- probDef_2^3
+kable(t(c(senior_2_2bonds,senior_2_3bonds)),col.names = c(2,3), 
+      caption="Difference between 2 and 3 bonds on senior tranche with bond default=10%")
+```
+  
+Probability of default decreases with increase in number of bonds    
+
+```{r echo=FALSE}
+normal_senior_2 <- senior_2_3bonds
+normal_mez_2 <- probDef_2^3 + 3 * probDef_2^2 * (1-probDef_2)
+normal_junior_2 <- probDef_2^3 + 3 * probDef_2^2 * (1-probDef_2) + 
+  3 * (1-probDef_2)^2 * probDef_2
+```
+
+_3 CDOs_
+
+**Senior and Mezzanine for the CDOs**  
+```{r echo=FALSE}
+mezdefault_2 <- probDef_2*probDef_2*probDef_2 + (3 * (1-probDef_2) * probDef_2 * probDef_2)  
+
+senior_mezdefault_2 <- mezdefault_2 * mezdefault_2 * mezdefault_2  
+mez_mezdefault_2 <- mezdefault_2 * mezdefault_2 * mezdefault_2   + 
+  (3 * (1-mezdefault_2) * mezdefault_2 * mezdefault_2)
+junior_mezdefault_2 <- mezdefault_2 * mezdefault_2 * mezdefault_2 + 
+  (3 * (1-mezdefault_2) * mezdefault_2 * mezdefault_2) + 
+  (3*(1-mezdefault_2)^2 * mezdefault_2)  
+
+
+kable(t(c(senior_mezdefault_2,mez_mezdefault_2)),col.names=c("Senior CDO2","Mez CDO2"),caption="Senior and Mezzanine tranch default probability with bond default = 10%")
+```
+
+**Ratio between 10\% and 4\%**  
+```{r echo=FALSE}
+probDef_3 <- 0.04
+normal_senior_3 <- probDef_3^3
+normal_mez_3 <- probDef_3^3 + 3 * probDef_3^2 * (1-probDef_3)
+normal_junior_3 <- probDef_3^3 + 
+  3 * probDef_3^2 * (1-probDef_3) +3 * (1-probDef_3)^2 * probDef_3
+
+
+mezdefault_3 <- probDef_3*probDef_3*probDef_3 + (3 * (1-probDef_3) * probDef_3 * probDef_3)  
+
+senior_mezdefault_3 <- mezdefault_3 * mezdefault_3 * mezdefault_3  
+mez_mezdefault_3 <- mezdefault_3 * mezdefault_3 * mezdefault_3   + 
+  (3 * (1-mezdefault_3) * mezdefault_3 * mezdefault_3)
+junior_mezdefault_3 <- mezdefault_3 * mezdefault_3 * mezdefault_3   + 
+  (3 * (1-mezdefault_3) * mezdefault_3 * mezdefault_3) + 
+  (3*(1-mezdefault_3)^2 * mezdefault_3)
+
+
+answers <- c(normal_senior_2/normal_senior_3, normal_mez_2/normal_mez_3, 
+             normal_junior_2/normal_junior_3, senior_mezdefault_2/senior_mezdefault_3,
+             mez_mezdefault_2/mez_mezdefault_3, junior_mezdefault_2/junior_mezdefault_3)
+kable(t(answers),col.names=c("Senior","Mez","Junior","Senior CDO2","Mez CDO2","Junior CDO2"))
+
+```
+
+The Senior tranches are most sensitive to a change in default probability, mainly because there are high existing standards, which are tough to keep up with due to increasing default probability. Also we can see a drastic increase from normal and CDO2.  
+
+
+```{r eval=FALSE}
+#1.1
+library(knitr)
+black_scholes <- function(S, X, rf, Time, sigma,iscall) {
+    d1 <- (log(S/X)+(rf+sigma^2/2)*Time)/(sigma*sqrt(Time))
+    d2 <- d1 - sigma * sqrt(Time)
+ 
+    if(iscall){
+      value <- S*pnorm(d1) - X*exp(-rf*Time)*pnorm(d2)
+    }
+    else{
+      value <- X*exp(-rf*Time) * pnorm(-d2) - S*pnorm(-d1)
+    }
+    return(value)
+}
+
+S0 <- 52
+strike <- 50
+r <- 0.05
+sigma <- 0.3
+time <- 1
+price <- black_scholes(S0,strike,r,time,sigma,TRUE)
+price
+
+
+##1.2
+q <- 0.02
+price * (1-q)
+
+##1.3
+itm_prob <- function(S, X, rf, Time, sigma,iscall) {
+    d2 <- (log(S/X)+(rf-sigma^2/2)*Time)/(sigma*sqrt(Time))
+    return(pnorm(-d2))
+}
+
+cod_1 <- price*q
+cod_2 <- price*itm_prob(S0,strike,r,time,sigma,TRUE)*q
+cod_1 - cod_2
+
+
+##1.4
+p <- 0.01
+cod_4 <- price*(1-itm_prob(S0,strike,r,time,sigma,TRUE)) * p
+
+price * itm_prob(S0,strike,r,time,sigma,TRUE) * (1-q)
+price * (1-itm_prob(S0,strike,r,time,sigma,TRUE)) * (1-p)
+
+
+# Question 2
+##2.1
+probDef <- 0.05
+
+junior <- 1 * (1-probDef) * (1-probDef)
+senior <- 1 * (1 - (probDef * probDef))
+kable(t(c(junior,senior)),col.names=c("Junior","Senior"))
+
+
+probDef <- 0.05
+junior <- 1 * (1-probDef)
+senior <- 1 * (1-probDef)
+kable(t(c(junior,senior)),col.names=c("Junior","Senior"))
+
+
+##2.2
+library(pbivnorm)
+default_qt <-  qnorm(probDef)
+non_default_qt <- qnorm(1-probDef)
+
+cors <-  seq(-1.0,1.0,by= 0.1)
+senior <-  sapply(cors,function(cor) (pbivnorm(default_qt,default_qt,cor)))
+junior <-  sapply(cors,function(cor) (1-pbivnorm(non_default_qt,non_default_qt,cor)))
+
+plot(y=junior,x=cors,type = "l",main = "Junior tranch default probability", 
+     xlab="correlation",ylab="default rates")
+plot(y=senior,x=cors,type="l",main="Senior tranch default probability", 
+     xlab="correlation", ylab="default rates")
+lines(y=senior,x=cors,col="red")
+
+
+##2.3
+probDef_2 <- probDef^2
+probDef_3 <- probDef^3
+kable(t(c(probDef_2,probDef_3)),col.names=c(2,3))
+
+##2.4 CDOS
+mezdefault <- probDef*probDef*probDef + (3 * (1-probDef) * probDef * probDef)
+
+senior_mezdefault <- mezdefault * mezdefault * mezdefault  
+mez_mezdefault <- mezdefault * mezdefault * mezdefault   + 
+  (3 * (1-mezdefault) * mezdefault * mezdefault)
+kable(t(c(senior_mezdefault,mez_mezdefault)),col.names=c("Senior CDO2","Mez CDO2"))
+
+##2.5
+#Probability of default = 10\%
+#3 normal bonds  
+#Probability of default difference between 2 and 3 bonds for senior (Question 3)    
+
+probDef_2 <- 0.1
+senior_2_2bonds <- probDef_2^2
+senior_2_3bonds <- probDef_2^3
+kable(t(c(senior_2_2bonds,senior_2_3bonds)),col.names = c(2,3), 
+      caption="Difference between 2 and 3 bonds on senior tranche with bond default=10%")
+
+#Probability of default decreases with increase in number of bonds    
+normal_senior_2 <- senior_2_3bonds
+normal_mez_2 <- probDef_2^3 + 3 * probDef_2^2 * (1-probDef_2)
+normal_junior_2 <- probDef_2^3 + 3 * probDef_2^2 * (1-probDef_2) + 
+  3 * (1-probDef_2)^2 * probDef_2
+
+#3 CDOs
+#Senior and Mezzanine for the CDOs
+mezdefault_2 <- probDef_2*probDef_2*probDef_2 + (3 * (1-probDef_2) * probDef_2 * probDef_2)  
+
+senior_mezdefault_2 <- mezdefault_2 * mezdefault_2 * mezdefault_2  
+mez_mezdefault_2 <- mezdefault_2 * mezdefault_2 * mezdefault_2   + 
+  (3 * (1-mezdefault_2) * mezdefault_2 * mezdefault_2)
+junior_mezdefault_2 <- mezdefault_2 * mezdefault_2 * mezdefault_2 + 
+  (3 * (1-mezdefault_2) * mezdefault_2 * mezdefault_2) + 
+  (3*(1-mezdefault_2)^2 * mez_mezdefault_2)  
+
+
+kable(t(c(senior_mezdefault_2,mez_mezdefault_2)),col.names=c("Senior CDO2","Mez CDO2"),caption="Senior and Mezzanine tranch default probability with bond default = 10%")
+
+#Ratio between 10\% and 4\%**  
+probDef_3 <- 0.04
+normal_senior_3 <- probDef_3^3
+normal_mez_3 <- probDef_3^3 + 3 * probDef_3^2 * (1-probDef_3)
+normal_junior_3 <- probDef_3^3 + 
+  3 * probDef_3^2 * (1-probDef_3) +3 * (1-probDef_3)^2 * probDef_3
+
+
+mezdefault_3 <- probDef_3*probDef_3*probDef_3 + (3 * (1-probDef_3) * probDef_3 * probDef_3)  
+
+senior_mezdefault_3 <- mezdefault_3 * mezdefault_3 * mezdefault_3  
+mez_mezdefault_3 <- mezdefault_3 * mezdefault_3 * mezdefault_3   + 
+  (3 * (1-mezdefault_3) * mezdefault_3 * mezdefault_3)
+junior_mezdefault_3 <- mezdefault_3 * mezdefault_3 * mezdefault_3   + 
+  (3 * (1-mezdefault_3) * mezdefault_3 * mezdefault_3) + 
+  (3*(1-mezdefault_3)^2 * mez_mezdefault_3)
+
+
+answers <- c(normal_senior_2/normal_senior_3, normal_mez_2/normal_mez_3, 
+             normal_junior_2/normal_junior_3, senior_mezdefault_2/senior_mezdefault_3,
+             mez_mezdefault_2/mez_mezdefault_3, junior_mezdefault_2/junior_mezdefault_3)
+kable(t(answers),col.names=c("Senior","Mez","Junior","Senior CDO2","Mez CDO2","Junior CDO2"))
+
+```
+

@@ -1,0 +1,401 @@
+---
+title: "Financial Risk Management Homework 3"
+subtitle: "Nitish Ramkumar"
+author: "Collaborators: Justin Ge, Carlos Quicazan, Yuying Wang"
+output: pdf_document
+---
+
+```{r echo=FALSE}
+setwd("C:/_UCLA/Quarter3/RiskMgmt/Assignment/Assignment3")
+suppressWarnings(suppressMessages(library(XLConnect)))
+suppressMessages(library(xts))
+suppressWarnings(suppressMessages(library(fExtremes)))
+suppressMessages(library(gPdtest))
+suppressMessages(library(knitr))
+suppressMessages(library(lubridate))
+suppressMessages(library(moments))
+wb <- loadWorkbook("homework3_data.xls")
+data.xl <- readWorksheet(wb,"Sheet1",header = TRUE)
+```
+#Question 1
+
+```{r echo=FALSE}
+calculateDailyHistVar <- function(stocks,dates,c){
+  var <- data.frame(Date= as.Date(character()),VaR = double())
+  
+  for(count in 1:length(dates)){
+    #Get subset of data for this date
+    stock_historical <- stocks[index(stocks) < dates[count]]
+    
+    var[count,1] <- dates[count]
+    #find return for that position
+    var[count,2] <- CalculateHistVar(stock_historical,c)
+  }
+  return(var)
+}
+
+CalculateHistVar <- function(stocks,c){
+    varPosition <- nrow(stocks)*(1-c)
+    varPosition <- ceiling(varPosition)
+    hist_df <- as.data.frame(stocks)
+    hist_df <- hist_df[order(hist_df[,1]),]
+    return(hist_df[varPosition])
+}
+
+
+calculateDailyExpWghtVar <- function(stocks,dates,c){
+  #Hold the VaR info
+  var <- data.frame(Date= as.Date(character()),VaR = double())
+  
+  for(count in 1:length(dates)){
+    #Find all historical data
+    stock_historical <- stocks[index(stocks) < dates[count]]
+    var[count,"Date"] <- dates[count]
+    var[count,"VaR"] <- calculateExpWghtVar(stock_historical,c)
+  }
+  return(var)
+}
+
+calculateExpWghtVar <- function(stocks,c){
+    lambda <- 0.995
+    
+    stocks <- cbind(stocks,rep(NA,nrow(stocks)))
+    colnames(stocks) <- c("Gains","Weight")
+    n <- nrow(stocks)
+    
+    #Perform weighting algo
+    for(i in 1:n){
+      stocks[i,"Weight"] <- (lambda^(n-i)) * (1-lambda)/(1-(lambda^n))
+    }
+    
+    #Calculate cumulative sum after ordering based on Gains.
+    #Get first entry for which cumSum >= 0.01
+    stocks <- as.data.frame(stocks)
+    stocks <- stocks[order(stocks$Gains),]
+    stocks$weightedCum <- cumsum(stocks$Weight)
+    sample <- stocks[stocks$weightedCum>=0.01,]
+    return(sample[1,"Gains"])
+}
+
+```
+
+**Historical VaR**  
+Number of exceptions by historical VaR is   
+```{r echo=FALSE}
+#Calculate historical VaR
+c <- 0.99
+data <- xts(data.xl[,2],data.xl[,1])
+date.reqd <- index(data[index(data)>='2007-01-01'])
+var.hist <- calculateDailyHistVar(data[,1],date.reqd,c)
+expCount.hist <- sum(data[date.reqd,1] < var.hist[,2])
+expCount.hist
+```
+  
+**Exponential VaR**  
+Number of exceptions by Exponential VaR is  
+```{r echo=FALSE}
+lambda <- 0.995
+var.exp <- calculateDailyExpWghtVar(data[,1],date.reqd,c)
+expCount.Exp <- sum(data[date.reqd,1] < var.exp[,2])
+expCount.Exp
+```
+  
+The graph of the both the VaRs compared to returns is  
+```{r echo=FALSE}
+plot(data[index(data)>='2007-01-01'],main="Plot of returns and Historical VaR")
+lines(xts(var.hist[,2],var.hist[,1]),col="red")
+lines(xts(var.exp[,2],var.exp[,1]),col="blue")
+legend("bottom",col=c("Red","Blue"),lty=1,c("VaR Historical","VaR Exponential"))
+```
+
+As can be seen, the exponential has more number of exceptions as compared to the historical method. As this is a downward graph, the most recent VaR is the bigger in magnitude. As the exponential is weighing the most recent, we can see that the size of the VaR of exponential is bigger.  
+
+#Question 2
+**Parametric Historical**
+
+Based on the assumption that the returns are normal, we get the following sample confidence intervals for the VaR measure.  
+  
+For every day, we need to calculate standard deviation of VaR for which we can use the formula  
+  
+$\frac{1}{f(x)}*sqrt(\frac{c(1-c)}{n})$  
+  
+where f(x) is probability distribution of normal.    
+```{r echo=FALSE}
+calculateParametricCI <- function(stocks,var.data){
+  cinterval <- data.frame(Date=as.Date(as.character()),LI = as.numeric(), UI = as.numeric())
+  for(count in 1:nrow(var.data)){
+    stock_historical <- stocks[index(stocks) < var.data[count,1]]
+    
+    #Calculate theoritical value of VaR
+    gains.mu <- mean(stock_historical[,1])
+    gains.sd <- sd(stock_historical[,1])
+    theor.var <-  -(gains.mu + gains.sd*qnorm(0.01))
+    
+    #Find probability
+    fx <- dnorm(theor.var,gains.mu, gains.sd)
+    
+    #Find VaR sd using the formula
+    var.sd <- (1/fx)*sqrt(c*(1-c)/nrow(stock_historical))
+    
+    #Set Values
+    cinterval[count,"Date"] <- var.data[count,1]
+    cinterval[count,"LI"] <- var.data[count,2] + qnorm(0.025)*var.sd
+    cinterval[count,"UI"] <- var.data[count,2] + qnorm(0.975)*var.sd
+  }
+  
+  return(cinterval)
+}
+
+parametric.hist <- calculateParametricCI(data[,1],var.hist)
+tail(parametric.hist,n=8)
+```
+Plot of the graph is as follows  
+```{r echo=FALSE}
+parametric.hist_xts  <- xts(parametric.hist[,-1],parametric.hist$Date)
+plot(parametric.hist_xts[,1],main="Historical Parametric",ylim=c(-350,-50))
+lines(parametric.hist_xts[,2],col="red")
+legend("topright",c("Lower","Upper"),col=c("black","red"),lty=1)
+```
+
+**Bootstrap Historical**  
+  
+For Bootstrap, for every day, we need to sample 1000 sets out of the historical data (compared to that day).    
+```{r echo=FALSE}
+calculateBootstrapCI <- function(stocks, varDates, noOfSim, varFunction){
+  bootstrapCI <- data.frame(Date=as.Date(as.character()), LI = as.numeric(), UI = as.numeric())
+  #Loop for every date
+  for(dateCount in 1:length(varDates)){
+    #get the historical data for this date
+    stock_historical <- stocks[index(stocks) < varDates[dateCount]]
+    
+    #Perform Bootstrap
+    bs_var <- sapply(1:noOfSim, function(x){
+        #Sample out data from historical data
+        BS_Sample <- stock_historical[sample(1:nrow(stock_historical),size=nrow(stock_historical),replace=TRUE),]
+        #Call respective VaR function (historical, exponential) 
+        varFunction(BS_Sample,c)
+    })
+    
+
+    bootstrapCI[dateCount,"Date"] <- varDates[dateCount]
+    bootstrapCI[dateCount,"LI"] <- quantile(bs_var,0.025)
+    bootstrapCI[dateCount,"UI"] <- quantile(bs_var,0.975)
+  }     
+  
+  return(bootstrapCI)
+}
+
+
+calculateBootstrapCI_eff <- function(stocks, varDates, noOfSim, varFunction){
+  output <- rbindlist(lapply(1:length(varDates), function(dateCount){
+        #get the historical data for this date
+        stock_historical <- stocks[index(stocks) < varDates[dateCount]]
+    
+        #Perform Bootstrap
+        bs_var <- sapply(1:noOfSim, function(x){
+          #Sample out data from historical data
+          BS_Sample <- stock_historical[sample(1:nrow(stock_historical),size=nrow(stock_historical),replace=TRUE),]
+          #Call respective VaR function (historical, exponential) 
+          varFunction(BS_Sample,c)
+        })
+        
+        list(Date=varDates[dateCount],LI=quantile(bs_var,0.025),UI=quantile(bs_var,0.975)) 
+    }))
+  
+  return(output)
+  
+}
+
+calculateBootstrapCI_eff2 <- function(stocks, varDates, noOfSim, varFunction){
+  library(dplyr)
+  data <- data.frame(Dates=varDates)
+  data %>% mutate()
+  
+  
+  output <- rbindlist(lapply(1:length(varDates), function(dateCount){
+        #get the historical data for this date
+        stock_historical <- stocks[index(stocks) < varDates[dateCount]]
+    
+        #Perform Bootstrap
+        bs_var <- sapply(1:noOfSim, function(x){
+          #Sample out data from historical data
+          BS_Sample <- stock_historical[sample(1:nrow(stock_historical),size=nrow(stock_historical),replace=TRUE),]
+          #Call respective VaR function (historical, exponential) 
+          varFunction(BS_Sample,c)
+        })
+        
+        list(Date=varDates[dateCount],LI=quantile(bs_var,0.025),UI=quantile(bs_var,0.975)) 
+    }))
+  
+  return(output)
+  
+}
+```
+
+```{r eval=FALSE,echo=FALSE}
+Sys.time()
+hist_btsp_CI <- calculateBootstrapCI_eff(data[,1], date.reqd, 1000, CalculateHistVar)
+Sys.time()
+exp_btsp_CI <- calculateBootstrapCI_eff(data[,1], date.reqd, 1000, calculateExpWghtVar)
+Sys.time()
+save(hist_btsp_CI,exp_btsp_CI,file="RiskMgmt_Hwk3.RData")
+```
+
+```{r echo=FALSE}
+load("RiskMgmt_Hwk3.RData")
+hist_btsp_CI_xts  <- xts(hist_btsp_CI[,-1],hist_btsp_CI$Date)
+tail(hist_btsp_CI_xts,n=6)
+plot(hist_btsp_CI_xts[,1],main="Historical Bootstrap",ylim=c(-350,-50))
+lines(hist_btsp_CI_xts[,2],col="red")
+legend("topright",c("Lower","Upper"),col=c("black","red"),lty=1)
+```
+
+
+**Bootstrap Exponential**
+```{r echo=FALSE}
+exp_btsp_CI_xts  <- xts(exp_btsp_CI[,-1],hist_btsp_CI$Date)
+tail(exp_btsp_CI_xts,n=6)
+plot(exp_btsp_CI_xts[,1],main="Exponential Bootstrap",ylim=c(-350,-50))
+lines(exp_btsp_CI_xts[,2],col="red")
+legend("topright",c("Lower","Upper"),col=c("black","red"),lty=1)
+```
+
+#Question 3
+We can fit the General Pareto distribution for the left tail of the data by using the gdp.fit (library gPdTest) or gpdFit (library fExtremes) function. The input for both function would be the 5\% cutoff of the data, as that indicates the tail. The estimate of $\psi$ and $\beta$ of the pareto distribution are as below.       
+
+```{r echo=FALSE}
+stocks <- data[,1]
+cutoffPos <- ceiling(0.05*nrow(stocks))
+orderStocks <- as.data.frame(stocks)
+orderStocks <- sort(orderStocks[,1])
+fit <- gpd.fit(orderStocks[1:cutoffPos]*-1,"amle")
+kable(fit)
+```
+
+Graph of the tail as estimated by gPdTest is as below  
+```{r echo=FALSE}
+fit2 <- gpdFit(orderStocks[1:cutoffPos]*-1, type = "mle", u = orderStocks[cutoffPos]*-1, title = "Pareto Distribution", description = "Plot of tail")
+plot(fit2,which=2)
+```
+
+Based on these values, and other information like number of values in the tail, and first value of the tail (cutoff point value), we can calculate the VaR and ES of the model.  
+```{r echo=FALSE}
+#VaR
+u <- orderStocks[cutoffPos]*-1
+#beta <- fit2@fit$par.ests[2]
+#epln <- fit2@fit$par.ests[1]
+beta <- fit[2]
+epln <- fit[1]
+nu <- cutoffPos
+n <- length(orderStocks)
+var <- u + (beta/epln)*(((n*0.01/nu)^(-epln))-1)
+var_999 <- u + (beta/epln)*(((n*0.001/nu)^(-epln))-1)
+
+#ES
+es <- (var + beta - (epln*u))/(1-epln)
+
+answer <- c(var,var_999)
+names(answer) <- c("VaR 99%","Var 99.9%")
+kable(t(answer))
+```
+
+#Question 4
+The original gains data is not normal. This can be confirmed by looking at the graph and at the very low JB test p values
+```{r echo=FALSE}
+hist(stocks[,1],breaks = 100,main="Original Gains",xlab="Gains")
+jarque.test(as.vector(coredata(stocks[,1])))
+```
+
+But when we normalize the gains using the volatility and mean of the previous month (not including current day), we get a graph and JB p test which is slightly better than the previous one, but we can still conclude that it is not normal.  
+```{r echo=FALSE}
+stocks4 <- as.data.frame(stocks[,1])
+stocks4 <- cbind(index(stocks),stocks4)
+stocks4 <- cbind(stocks4,stocks4[,1]%m-%months(1))
+stocks4 <- cbind(stocks4,rep(NA,nrow(stocks4)))
+colnames(stocks4) <- c("Date","Gains","Cutoff","Normalized")
+for(count in 22:nrow(stocks4)){
+  sample <- stocks4[stocks4$Date >= stocks4[count,"Cutoff"] & stocks4$Date < stocks4[count,"Date"],]
+  sdRoll <- sd(sample[,"Gains"],na.rm = T)
+  meanRoll <- mean(sample[,"Gains"],na.rm = T)
+  stocks4[count,"Normalized"] <- (stocks4[count,"Gains"]-meanRoll)/sdRoll   
+}
+
+hist(stocks4[,"Normalized"],breaks=100,col="red",main="Normalized Gains using prev. volatility", xlab = "Normalized Gains")
+jarque.test(stocks4[!is.na(stocks4$Normalized),"Normalized"])
+```
+
+#Question 5
+When we use forward looking volatility and mean for normalizing gains(1 month ahead including current day), the gain distribution can be concluded as a normal distribution. We can conclude that forward looking volatility is always worth estimating in order to get proper estimates of future gains.  
+
+```{r echo=FALSE}
+stocks5 <- as.data.frame(stocks[,1])
+stocks5 <- cbind(index(stocks),stocks5)
+stocks5 <- cbind(stocks5,stocks5[,1]%m+%months(1))
+stocks5 <- cbind(stocks5,rep(NA,nrow(stocks5)))
+colnames(stocks5) <- c("Date","Gains","Cutoff","Normalized")
+for(count in 1:(nrow(stocks5)-21)){
+  sample <- stocks5[stocks5$Date >= stocks5[count,"Date"] & stocks5$Date <= stocks5[count,"Cutoff"],]
+  sdRoll <- sd(sample[,"Gains"],na.rm = T)
+  meanRoll <- mean(sample[,"Gains"],na.rm = T)
+  stocks5[count,"Normalized"] <- (stocks5[count,"Gains"]-meanRoll)/sdRoll   
+}
+hist(stocks5[,"Normalized"],breaks=100,col="red",main="Normalized Gains")
+jarque.test(stocks5[!is.na(stocks5$Normalized),"Normalized"])
+```
+
+#Question 6
+1) As noticed in Question 1 and 2, the exponential method for estimating VaR seems better than the historical method, as it weighs current information more than the past information. This can be noticed during 2008, where the VaR value is much higher as compared to the historical method, due to the higher weight for recent losses faced by the industry. **So we would prefer exponential over historical value.**    
+    
+2) Question 3 introduced the concept of modelling only the tail's distribution and calculating VaR from it. This is a more robust way of calculating VaR as we focus our calculations on the extreme events, which is what VaR is expected to capture. An issue with the power law method is that there are only 25 values in the tail for a distribution of 500 observations, which is a small sample. **If sample size is high, then the power law method is preferred**  
+  
+3) Through Question 4 and 5, we can conclude that normalized gains using forward looking volatility are a better representation of the data, as it gets similar to a normal distribution. Amongst the 2, forward looking volatility is better as it helps in understanding how the gains are going to be affected in the future. 
+
+#Interview Questions
+##1
+If we have 1 sample, probability of being within 0.7 and 0.72 is *0.02*  
+  
+If we have 2 samples, probability of being within 0.7 and 0.72 = 1- prob(not within the range) =  
+1 - (0.98)(0.98) = 3.96\%  
+  
+If we have n samples, the probability is 1-${0.98}^n$ = 0.95 (given) => n = 148.28  
+  
+**So we need 149 random values to get at least one value within 0.7 and 0.72.**     
+
+##2
+```{r}
+#Var = -(mu + z*sigma)
+Var_98_1day <- 10000000/sqrt(5)
+sigma <- Var_98_1day/(-qnorm(0.02))
+Var_99_10day <- -(sigma*qnorm(0.01))*sqrt(10)
+Var_99_10day
+```
+
+##3
+$\pi$ can be estimated by taking 2 uniform distributed values (x and y) and checking if $sqrt(x^2 + y^2)$ <= 1. We can repeat this n times and calculate number of times the condition is met. The ratio of number of times it falls with the circle to n is equal to $\frac{\pi}{4}$ 
+  
+In order to get a standard deviation, this simulation can be repeated multiple times to get a range.    
+Mean and standard deviation are as below:  
+```{r}
+NoOfSim <- 10000
+piVal <- c()
+for(i in 1:NoOfSim){
+  NoOfThrows <- 1000
+  throwsInside <- 0
+  for(j in 1:NoOfThrows){
+    x <- runif(1)
+    y <- runif(1)
+    if(sqrt(x^2 + y^2) <= 1){
+      throwsInside = throwsInside + 1
+    }
+  }
+  piVal[i] <- throwsInside/NoOfThrows
+}
+#-1 to 1
+mean(piVal)*4
+sd(piVal)
+```
+
+##4
+1) Gamma indicates how delta changes with stock price
+2) The gamma is highest at the money, which is a risky position to be due to high change in value due to volatility. Due to this, it is better to hold low gamma.
+3) When we are long, the delta of vanilla options always increases with increase in stock. So gamma is positive

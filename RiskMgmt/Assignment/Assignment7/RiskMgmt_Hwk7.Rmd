@@ -1,0 +1,266 @@
+---
+title: "Risk Management Homework 7"
+author: "Nitish Ramkumar"
+output: pdf_document
+---
+
+#Question 1
+For this problem, we calculate the lambda for the periods for which the probability is provided.  
+  
+Using the lambda and the formula for probability of default using lambda, we can calculate probability of default at every point there is a cashflow (in this case 0.5,1,1.5,2...,7 years).  
+  
+Once we know probability, we can find present value of the default adjusted cash flows (cash flow * probability). We also need to add the recovery rate in case of default into the price of the bond.  
+  
+Assumed a risk free rate and recovery rate of 0.   
+```{r echo=FALSE}
+library(knitr)
+suppressMessages(library(expm))
+
+#Questions : what is r, what is residual rate
+calculate7yearbondprice <- function(lambda,coupon,faceVal,r,recovery){
+  couponTime <- seq(0.5,7,0.5)
+  lambdaUse <- c(lambda[1]*0.5,lambda[1],lambda[1]*1.5,lambda[1]*2,lambda[1]*2.5,lambda[1]*3,lambda[1]*3+lambda[2]*0.5,
+                 lambda[1]*3+lambda[2],lambda[1]*3+lambda[2]*1.5,lambda[1]*3+lambda[2]*2,
+                 lambda[1]*3+lambda[2]*2+lambda[3]*0.5,lambda[1]*3+lambda[2]*2+lambda[3],
+                 lambda[1]*3+lambda[2]*2+lambda[3]*1.5,lambda[1]*3+lambda[2]*2+lambda[3]*2)
+  names(lambdaUse) <- couponTime
+  
+  price <- 0
+  for(i in 1:length(lambdaUse)){
+    price <- price + (coupon*exp(-lambdaUse[i])/(1+r)^i)
+    if(i == length(lambdaUse)){
+      price <-  price + (faceVal*exp(-lambdaUse[i])/(1+r)^i)
+    }
+  }
+  
+  price <- price + recovery*faceVal*(1-exp(-lambdaUse[length(lambdaUse)]))
+  price
+}
+  
+
+cds <- c(0.005,0.006,0.01)
+recovery <- 0.6
+lambda <- c()
+lambda[1] <- cds[1]/(1-recovery)
+
+
+lambda3Calc <- function(lambda3,cds,recovery,lambda0){
+  lft <- (cds/(1-recovery))*(((1-exp(-3*lambda0))/lambda0)+((exp(-3*lambda0)*(1-exp(-2*lambda3)))/(lambda3)))
+  rgt <- ((1-exp(-3*lambda0))+(exp(-3*lambda0)*(1-exp(-2*lambda3))))
+  lft-rgt
+}
+
+lambda5Calc <- function(lambda5,cds,recovery,lambda0,lambda3){
+  lft <- (cds/(1-recovery))*(((1-exp(-3*lambda0))/lambda0)+((exp(-3*lambda0)*(1-exp(-2*lambda3)))/(lambda3))
+                             +((exp(-3*lambda0-2*lambda3)*(1-exp(-5*lambda5)))/(lambda5)))
+  rgt <- ((1-exp(-3*lambda0))+(exp(-3*lambda0)*(1-exp(-2*lambda3))) + (exp(-3*lambda0-2*lambda3)*(1-exp(-5*lambda5))))
+  lft-rgt
+}
+
+lambda[2] <- uniroot(lambda3Calc,cds=cds[2],recovery=recovery,lambda0=lambda[1], interval = c(-1,1))$root
+lambda[3] <- uniroot(lambda5Calc,cds=cds[3],recovery=recovery,lambda0=lambda[1], lambda3 = lambda[2], interval = c(-1,1))$root
+
+kable(t(lambda),col.names=c(0,3,5),caption="Lambdas")
+coupon <- 2.5
+faceVal <- 100
+r <- 0
+recovery <- 0.6
+price <- calculate7yearbondprice(lambda,coupon,faceVal,r,recovery)
+kable(t(price),col.names = "Price")
+```
+
+#Question 2
+##1
+###a
+For P(0), each element is the probability of being in category j at time 0, given that it was in category i at time 0. So in this case we will have 1 along the diagonals (Identity matrix)
+```{r echo=FALSE}
+creditRat <- c("AAA","AA","A","BBB","BB","B","CCC","Default")
+P <- matrix(0,nrow = 8, ncol=8,dimnames=list(creditRat,creditRat))
+for(i in 1:nrow(P)){P[i,i] <- 1}
+kable(P)
+```
+
+###b
+This will be the transition matrix as provided in the slides. The last row is for default which has 0 for all transition to other ratings and 100\% for transition to default.
+```{r echo=FALSE}
+setwd("C:/_UCLA/Quarter3/RiskMgmt/Assignment/Assignment7")
+P1 <- read.csv("Transition.csv",header=F)
+colnames(P1) <- creditRat
+row.names(P1) <- creditRat
+kable(P1)
+```
+
+##2
+IF $\Lambda$ contains ${\lambda}_{i,j}$, such that ${\lambda}_{i,j}$ dt is the probability of moving from category i to category j in dt.
+P(t) is the transitional probability from time 0 to t. As it is a markov chain, when we move from t to t+$\Delta t$, we need only P(t) for calculation of P(t+$\Delta t$)
+
+Imagine the first row of the P(1) matrix, which indicates the probability of moving from AAA to various credit ratings. Imagine we want the first element of P(2), which is probability of it moving from AAA at t=0 to AAA at t=2. For this we can take the first row of P(1) and multiply the first column of $\Lambda$ (which indicates instantaneous probability of moving from one rating to AAA).  
+  
+This shows us that P(t) $\Lambda$ (Matrix multiplication) = P(t + $\Delta t$)   
+
+
+P(t+$\Delta t$) = P(t) $\Lambda \Delta t$   
+  
+$\Lambda \Delta t$ = $P(t)^{-1} P(t + \Delta t)$ = $P(t)^{-1}(\Delta P(t) + P(t))$  
+  
+$\Lambda$ = $(P(t)^{-1} \Delta P(t) + I) \frac{1}{\Delta t}$ = $\mathbf{({P(t)}^{-1} dP(t) + I) \frac{1}{dt}}$    
+     
+##3
+We know P(0) is Identity matrix (I)
+$\Lambda$ = $I^{-1}$(P(1)-I) + I = **P(1)**
+
+##4
+$\Lambda$ based on data is P(1)
+```{r echo=FALSE}
+Lambda <- as.matrix(P1/100)
+kable(Lambda)
+```
+
+##5
+The default probabilites for each year, can be calculated by performing $\Lambda^n$ and taking the last column.  
+```{r echo=FALSE}
+
+timevals <- c(1,2,3,4,5,7,10)
+q5 <- sapply(timevals,function(x){(Lambda%^%(x))[c(1:7),8]*100})
+colnames(q5) <- timevals
+row.names(q5) <- creditRat[c(1:7)]
+kable(q5)
+```
+
+##6
+The difference in the numbers might be because Moody's might not assuming a Markov process, while transitioning from one year to another. That is an important assumption in the method we have provided.  
+
+##7  
+Price of the BBB bond can be calculated using similar methodology as the first question. Before that we need to calculate the lambda using the default probabilities and use those for the calculations.    
+```{r echo=FALSE}
+calculateLambda <- function(conditionalDefault,t){
+  vt <- 1-conditionalDefault
+  integrallamb <- -log(vt)
+  nmr <- diff(integrallamb)
+  dnr <- diff(t)
+  lambda <- nmr/dnr
+  names(lambda) <- t[-length(t)]
+  return(lambda)
+}
+
+calculate7yearbondprice_2 <- function(lambda,coupon,faceVal,r,recovery){
+  couponTime <- seq(0.5,7,0.5)
+  lambdaUse <- c(lambda[1]*0.5,lambda[1],lambda[1]+lambda[2]*0.5,lambda[1]+lambda[2],lambda[1]+lambda[2] + lambda[3]*0.5,
+                 lambda[1]+lambda[2]+lambda[3],lambda[1]+lambda[2]+lambda[3]+0.5*lambda[4],lambda[1]+lambda[2]+lambda[3]+lambda[4],
+                 lambda[1]+lambda[2]+lambda[3]+lambda[4]+0.5*lambda[5],lambda[1]+lambda[2]+lambda[3]+lambda[4]+lambda[5],
+                 lambda[1]+lambda[2]+lambda[3]+lambda[4]+lambda[5]+0.5*lambda[6],
+                 lambda[1]+lambda[2]+lambda[3]+lambda[4]+lambda[5]+lambda[6],
+                 lambda[1]+lambda[2]+lambda[3]+lambda[4]+lambda[5]+1.5*lambda[6],
+                 lambda[1]+lambda[2]+lambda[3]+lambda[4]+lambda[5]+2*lambda[6])
+  names(lambdaUse) <- couponTime
+  
+  price <- 0
+  for(i in 1:length(lambdaUse)){
+    price <- price + (coupon*exp(-lambdaUse[i])/(1+r)^i)
+    if(i == length(lambdaUse)){
+      price <-  price + (faceVal*exp(-lambdaUse[i])/(1+r)^i)
+    }
+  }
+  
+  price <- price + recovery*faceVal*(1-exp(-lambdaUse[length(lambdaUse)]))
+  price
+}
+  
+
+BBBDef <- c(0,q5[4,]/100)
+t <- c(0,1,2,3,4,5,7,10)
+lambdas7 <- calculateLambda(BBBDef,t)
+pricebbb <- calculate7yearbondprice(lambdas7,2.5/2,100,0,0.6)
+kable(t(pricebbb),col.names = "Price")
+```
+
+##8  
+  
+The CDS spread can be calculated using the relation between $\lambda$ s and recovery rate as provided in the slides. The complete formula has been used for these calculations.  
+
+```{r echo=FALSE}
+cds <- c()
+recovery <- 0.6
+
+nmtr_3 <- ((1-exp(-lambdas7[1])) + exp(-lambdas7[1])*(1-exp(-lambdas7[2])) + exp(-lambdas7[1]-lambdas7[2])*(1-exp(-lambdas7[3])))
+dmtr_3 <- ((1-exp(-lambdas7[1]))/lambdas7[1] + exp(-lambdas7[1])*(1-exp(-lambdas7[2]))/lambdas7[2] +
+             exp(-lambdas7[1]-lambdas7[2])*(1-exp(-lambdas7[3]))/lambdas7[3])
+cds[1] <- nmtr_3*(1-recovery)/dmtr_3
+
+nmtr_5 <- nmtr_3 + exp(-lambdas7[1]-lambdas7[2]-lambdas7[3])*(1-exp(-lambdas7[4])) +
+          exp(-lambdas7[1]-lambdas7[2]-lambdas7[3]-lambdas7[4])*(1-exp(-lambdas7[5]))           
+dmtr_5 <- dmtr_3 + exp(-lambdas7[1]-lambdas7[2]-lambdas7[3])*(1-exp(-lambdas7[4]))/lambdas7[4] +
+          exp(-lambdas7[1]-lambdas7[2]-lambdas7[3]-lambdas7[4])*(1-exp(-lambdas7[5]))/lambdas7[5]
+cds[2] <- nmtr_5*(1-recovery)/dmtr_5
+
+nmtr_10 <- nmtr_5 + exp(-lambdas7[1]-lambdas7[2]-lambdas7[3]-lambdas7[4]-lambdas7[5]-2*lambdas7[6])*(1-exp(-3*lambdas7[7]))
+dmtr_10 <- dmtr_5 + exp(-lambdas7[1]-lambdas7[2]-lambdas7[3]-lambdas7[4]-lambdas7[5]-2*lambdas7[6])*(1-exp(-3*lambdas7[7]))/lambdas7[7]
+cds[3] <- nmtr_10*(1-recovery)/dmtr_10
+
+names(cds) <- c(3,5,10)
+
+kable(t(cds))
+
+```
+
+#Question 3
+##1
+We should go **long** the 1 year zero coupon bond and **long** the 1 year CDS (with cash settlement or physical settlement).  
+If the bond issuer does not default, the investor gets the face value F of the zero coupon bond, which is similar to the a return of risk free rate.  
+  
+If the bond issuer defaults, the bond will fall to $\rho F$, and we will get $(1-\rho) F$ from the CDS. The net amount of F can be invested at risk free for the remainder of the period. On the whole the return is risk free.     
+
+Assume the face value of the bond as F, recovery rate as $\rho$, interest rate as i, price of bond as B, price of Risk free bond as RfB, CDS payment is CDS  
+  
+**Long CDS**  
+Payment present value = $\sum_{n=0.25}^{1} \frac{CDS (1-d)}{4 * (i+i)^n}$  
+(quarterly payment of CDS as long as there is no default)  
+  
+Receive present value = $\frac{(1-\rho)Fd}{1+i}$
+  
+**Long Bond**  
+Payment = B  
+Receive = $\frac{F(1-d)}{1+i}$  
+  
+**Long Risk free**  
+Payment = RfB  
+Receive = $\frac{F}{1+i}$  
+  
+From previous question,     
+Profit on Long CDS + Long Bond = Profit on Long Risk Free  
+$\frac{(1-\rho)Fd}{1+i} + \frac{F(1-d)}{1+i} - \sum_{n=0.25}^{1} \frac{CDS (1-d)}{4 * (i+i)^n} -B$ = $\frac{F}{1+i} - RfB$  
+     
+$\mathbf{RfB - B = \sum_{n=0.25}^{1} \frac{CDS (1-d)}{4 * (i+i)^n} + \frac{\rho Fd}{1+i}}$  
+
+##2
+**CDS Expensive than bonds**  
+
+1) CDS cheapest to deliver option  
+In the case of physical delivery after a credit event, a protection buyer holds a delivery option, as he is free to choose the cheapest from a basket of deliverable bonds. Since it is likely that protection sellers will end up owning the least favourable alternative if different deliverable bonds are trading at different spreads, they should receive a higher premium to compensate for this risk. As a result, the cheapest to deliver option tends to makes the CDS more expensive.
+
+2) CDS premia are floored at zero  
+Bonds with very high quality might trade in negative rates. But the default swap rates can't go negative, due to its insurance like feature.  Due to this the bond ends up being cheaper than the CDS.    
+
+3)  Demand for protection  
+There is a high demand for CDS in banks for hedging exposure to loans, which in turn increases the prices.  
+  
+4) Bond prices trade below par.  
+  
+5) Restructuring clause of certain CDS allows for payments even when there is no default.  
+  
+6) LIBOR is greater than the risk free rate assumed in the market.  
+
+**CDS Cheaper than bonds**  
+
+1) Funding issues  
+The supposed equality between CDS premia and asset swap spreads is derived under the assumption that cash investors can fund themselves at LIBOR. However, many market participants only obtain funding above LIBOR levels, prompting them to obtain credit exposure by selling CDS rather than by acquiring asset swaps, driving the CDS-bond basis down. On balance, the greater the ratio of lower-rated versus higher-rated market participants, the more negative the basis should be. In addition, investors are exposed to future changes in the cost of funding (relative versus LIBOR), while a default swap locks in an effective funding rate of LIBOR flat, reinforcing the effect. The fact that different investors may fund themselves at different rates implies that the actual no-arbitrage level of a CDS versus asset swap trade varies for different market participants  
+  
+2) Relative liquidity in segmented markets  
+Prices in both cash bond and CDS markets are a function of their specific supply and demand dynamics, which tend to exhibit diverging characteristics in these two markets. The basis will depend on the relative liquidity in both markets, and will compensate an investor who invests in the less liquid segment. As there are more CDS on bonds than bonds itself, we expect CDS to be cheaper.  
+  
+3) There is a counterparty default risk involved in a CDS.  
+  
+4) Payoff of a CDS doesnt include the accured interest of the bond delivered.    
+
+
+  
